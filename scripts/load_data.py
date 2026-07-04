@@ -21,25 +21,37 @@ class DataLoader:
         if os.path.exists(sp1_path):
             print(f"✓ Cargando {sp1_path}")
             df_sp1 = pd.read_csv(sp1_path)
-            # Seleccionar solo columnas relevantes
-            cols_sp1 = ['Date', 'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR', 
-                        'HS', 'AS', 'HST', 'AST', 'HF', 'AF', 'HC', 'AC', 'HY', 'AY']
-            df_sp1 = df_sp1[cols_sp1].copy()
-            df_sp1.rename(columns={
-                'FTHG': 'Home_Goals',
-                'FTAG': 'Away_Goals',
-                'FTR': 'Result',
-                'HS': 'Home_Shots',
-                'AS': 'Away_Shots',
-                'HST': 'Home_ShotsOnTarget',
-                'AST': 'Away_ShotsOnTarget',
-                'HF': 'Home_Fouls',
-                'AF': 'Away_Fouls',
-                'HC': 'Home_Corners',
-                'AC': 'Away_Corners',
-                'HY': 'Home_Yellows',
-                'AY': 'Away_Yellows'
-            }, inplace=True)
+
+            # Detectar si el CSV ya viene con nombres estandarizados
+            # (por ejemplo, tras descargarlo con fetch_updated_data.py)
+            if 'Home_Goals' in df_sp1.columns:
+                cols_sp1 = ['Date', 'HomeTeam', 'AwayTeam', 'Home_Goals', 'Away_Goals', 'Result',
+                            'Home_Shots', 'Away_Shots', 'Home_ShotsOnTarget', 'Away_ShotsOnTarget',
+                            'Home_Fouls', 'Away_Fouls', 'Home_Corners', 'Away_Corners',
+                            'Home_Yellows', 'Away_Yellows']
+                # Filtrar solo las columnas que realmente existen
+                cols_sp1 = [c for c in cols_sp1 if c in df_sp1.columns]
+                df_sp1 = df_sp1[cols_sp1].copy()
+            else:
+                # Formato original de football-data.org
+                cols_sp1 = ['Date', 'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR',
+                            'HS', 'AS', 'HST', 'AST', 'HF', 'AF', 'HC', 'AC', 'HY', 'AY']
+                df_sp1 = df_sp1[cols_sp1].copy()
+                df_sp1.rename(columns={
+                    'FTHG': 'Home_Goals',
+                    'FTAG': 'Away_Goals',
+                    'FTR': 'Result',
+                    'HS': 'Home_Shots',
+                    'AS': 'Away_Shots',
+                    'HST': 'Home_ShotsOnTarget',
+                    'AST': 'Away_ShotsOnTarget',
+                    'HF': 'Home_Fouls',
+                    'AF': 'Away_Fouls',
+                    'HC': 'Home_Corners',
+                    'AC': 'Away_Corners',
+                    'HY': 'Home_Yellows',
+                    'AY': 'Away_Yellows'
+                }, inplace=True)
             dfs.append(df_sp1)
         
         # Cargar football_matches.csv
@@ -93,8 +105,8 @@ class DataLoader:
         
         print("\n🧹 Limpiando datos...")
         
-        # Convertir fecha a datetime
-        self.df['Date'] = pd.to_datetime(self.df['Date'], errors='coerce')
+        # Convertir fecha a datetime (football-data.org usa formato DD/MM/YYYY)
+        self.df['Date'] = pd.to_datetime(self.df['Date'], dayfirst=True, errors='coerce')
         
         # Eliminar filas con valores nulos en columnas críticas
         self.df = self.df.dropna(subset=['HomeTeam', 'AwayTeam', 'Home_Goals', 'Away_Goals', 'Result'])

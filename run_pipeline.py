@@ -5,22 +5,29 @@ Cargar -> Procesar -> Entrenar -> Evaluar
 
 import sys
 import os
-from sklearn.model_selection import train_test_split
 
 # Agregar la raíz del proyecto al path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from scripts.data_manager import ensure_raw_data
 from scripts.load_data import DataLoader
 from scripts.preprocess import FeatureEngineer
+from scripts.model_evaluation import temporal_split
 from models.predictor import LaLigaPredictor
 
 def main():
     print("=" * 60)
     print("🎯 PIPELINE COMPLETO - LM_LaLiga")
     print("=" * 60)
-    
+
+    # 0. ASEGURAR DATOS DISPONIBLES
+    print("\n[0/6] VERIFICANDO DATOS...")
+    if not ensure_raw_data():
+        print("❌ No se pudieron obtener datos. Abortando.")
+        return False
+
     # 1. CARGAR DATOS
-    print("\n[1/5] CARGANDO DATOS...")
+    print("\n[1/6] CARGANDO DATOS...")
     try:
         loader = DataLoader()
         loader.load_csv_files()
@@ -32,7 +39,7 @@ def main():
         return False
     
     # 2. PREPARAR CARACTERÍSTICAS
-    print("\n[2/5] PREPARANDO CARACTERÍSTICAS...")
+    print("\n[2/6] PREPARANDO CARACTERÍSTICAS...")
     try:
         engineer = FeatureEngineer(loader.df)
         X, y, df_features = engineer.prepare_features()
@@ -41,11 +48,11 @@ def main():
         print(f"❌ Error preparando características: {e}")
         return False
     
-    # 3. DIVIDIR DATOS
-    print("\n[3/5] DIVIDIENDO DATOS...")
+    # 3. DIVIDIR DATOS (temporalmente)
+    print("\n[3/6] DIVIDIENDO DATOS...")
     try:
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
+        X_train, X_test, y_train, y_test, _, _ = temporal_split(
+            X, y, df_features, test_size=0.2
         )
         print(f"✓ Train: {X_train.shape[0]}, Test: {X_test.shape[0]}")
     except Exception as e:
@@ -53,7 +60,7 @@ def main():
         return False
     
     # 4. ENTRENAR MODELO
-    print("\n[4/5] ENTRENANDO MODELOS...")
+    print("\n[4/6] ENTRENANDO MODELOS...")
     try:
         predictor = LaLigaPredictor()
         
@@ -64,7 +71,7 @@ def main():
         return False
     
     # 5. EVALUAR
-    print("\n[5/5] EVALUANDO MODELO...")
+    print("\n[5/6] EVALUANDO MODELO...")
     try:
         predictor.evaluate(X_test, y_test)
         predictor.feature_importance(X.columns.tolist(), top_n=15)
