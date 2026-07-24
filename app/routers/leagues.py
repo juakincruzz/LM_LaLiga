@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, Depends
@@ -39,6 +40,20 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
 
     offseason = await is_offseason(db, league_code)
 
+    cursor = await db.execute(
+        """
+        SELECT s.standings_json
+        FROM simulations s
+        JOIN model_runs mr ON s.model_run_id = mr.id
+        WHERE mr.league_id = ?
+        ORDER BY s.id DESC
+        LIMIT 1
+        """,
+        (league_code,)
+    )
+    sim_row = await cursor.fetchone()
+    sim_standings = json.loads(sim_row["standings_json"]) if sim_row else None
+
     return templates.TemplateResponse(
         request,
         "league_detail.html",
@@ -47,6 +62,7 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
             "league_code": league_code,
             "db_league": dict(league_row) if league_row else None,
             "match_count": match_count,
-            "is_offseason": offseason
+            "is_offseason": offseason,
+            "sim_standings": sim_standings
         }
     )

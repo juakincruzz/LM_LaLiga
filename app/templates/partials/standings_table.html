@@ -1,0 +1,24 @@
+<table class="w-full text-sm text-left">
+    <thead class="bg-gray-100 text-gray-700">
+        <tr>
+            <th class="px-4 py-2">Pos</th>
+            <th class="px-4 py-2">Equipo</th>
+            <th class="px-4 py-2">Pts</th>
+            <th class="px-4 py-2">GF</th>
+            <th class="px-4 py-2">GC</th>
+            <th class="px-4 py-2">Prob. Título</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for team in standings %}
+        <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-2 font-semibold">{{ loop.index }}</td>
+            <td class="px-4 py-2">{{ team.name }}</td>
+            <td class="px-4 py-2">{{ team.points }}</td>
+            <td class="px-4 py-2">{{ team.gf }}</td>
+            <td class="px-4 py-2">{{ team.ga }}</td>
+            <td class="px-4 py-2">{{ "%.1f"|format(team.champion_prob * 100) }}%</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
