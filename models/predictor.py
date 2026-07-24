@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from xgboost import XGBClassifier
@@ -15,10 +16,12 @@ except ImportError:
     LIGHTGBM_AVAILABLE = False
 
 
-class LaLigaPredictor:
-    """Modelo para predecir resultados de partidos de La Liga."""
+class LeaguePredictor:
+    """Modelo para predecir resultados de partidos de una liga."""
 
-    def __init__(self):
+    def __init__(self, league_code: str = "SP1"):
+        self.league_code = league_code
+        self.model_path = Path(f"models/{league_code}_predictor.pkl")
         self.model = None
         self.scaler = StandardScaler()
         self.feature_names = None
@@ -265,26 +268,33 @@ class LaLigaPredictor:
         print("⚠️  El modelo actual no proporciona importancia de features")
         return None
 
-    def save_model(self, path='models/laliga_predictor.pkl'):
+    def save_model(self, path=None):
         """Guarda el modelo entrenado."""
         if self.model is None:
             print("❌ Modelo no entrenado")
             return
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if path is None:
+            path = self.model_path
+
+        os.makedirs(os.path.dirname(str(path)), exist_ok=True)
 
         with open(path, 'wb') as f:
             pickle.dump({
                 'model': self.model,
                 'scaler': self.scaler,
                 'accuracy': self.accuracy,
-                'model_name': self.model_name
+                'model_name': self.model_name,
+                'league_code': self.league_code,
             }, f)
 
         print(f"✓ Modelo guardado en {path}")
 
-    def load_model(self, path='models/laliga_predictor.pkl'):
+    def load_model(self, path=None):
         """Carga un modelo entrenado."""
+        if path is None:
+            path = self.model_path
+
         try:
             with open(path, 'rb') as f:
                 data = pickle.load(f)
@@ -292,6 +302,7 @@ class LaLigaPredictor:
                 self.scaler = data['scaler']
                 self.accuracy = data['accuracy']
                 self.model_name = data.get('model_name', 'Unknown')
+                self.league_code = data.get('league_code', self.league_code)
 
             print(f"✓ Modelo cargado desde {path}")
             print(f"  Modelo: {self.model_name}")
@@ -318,8 +329,12 @@ if __name__ == "__main__":
 
     X_train, X_test, y_train, y_test, _, _ = temporal_split(X, y, df_features, test_size=0.2)
 
-    predictor = LaLigaPredictor()
+    predictor = LeaguePredictor()
     predictor.compare_models(X_train, y_train, X_test, y_test)
     predictor.evaluate(X_test, y_test)
     predictor.feature_importance(X.columns.tolist())
     predictor.save_model()
+
+
+# Alias retrocompatible para no romper imports existentes
+LaLigaPredictor = LeaguePredictor
