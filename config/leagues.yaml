@@ -1,0 +1,34 @@
+SP1:
+  name: "La Liga"
+  data_code: "SP1"
+  country: "Spain"
+  teams: 20
+  transfermarkt_league_id: 157
+
+E0:
+  name: "Premier League"
+  data_code: "E0"
+  country: "England"
+  teams: 20
+  transfermarkt_league_id: 131
+
+D1:
+  name: "Bundesliga"
+  data_code: "D1"
+  country: "Germany"
+  teams: 18
+  transfermarkt_league_id: 135
+
+I1:
+  name: "Serie A"
+  data_code: "I1"
+  country: "Italy"
+  teams: 20
+  transfermarkt_league_id: 157
+
+F1:
+  name: "Ligue 1"
+  data_code: "F1"
+  country: "France"
+  teams: 18
+  transfermarkt_league_id: 145
