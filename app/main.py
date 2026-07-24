@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from contextlib import asynccontextmanager
 
 from app.database import init_db
+from app.routers import dashboard
 
 
 @asynccontextmanager
@@ -17,7 +18,4 @@ app = FastAPI(title="LM_LaLiga Dashboard", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
-
-@app.get("/")
-async def root():
-    return {"message": "LM_LaLiga API"}
+app.include_router(dashboard.router)
