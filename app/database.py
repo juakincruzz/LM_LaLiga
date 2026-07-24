@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS job_status (
     progress INTEGER DEFAULT 0,
     result_json TEXT,
     created_at TEXT,
-    updated_at TEXT
+    updated_at TEXT,
+    log TEXT
 );
 """
 
@@ -102,6 +103,12 @@ async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        # Migrate: add log column to job_status if missing
+        try:
+            await db.execute("ALTER TABLE job_status ADD COLUMN log TEXT")
+            await db.commit()
+        except Exception:
+            pass
         await db.commit()
 
 
