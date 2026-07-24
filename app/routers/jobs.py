@@ -32,6 +32,36 @@ async def _run_data_update_job(job_id: int, league_code: str):
             await _update_job(db, job_id, "failed", 0, log=str(e))
 
 
+async def _run_train_job(job_id: int, league_code: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await _update_job(db, job_id, "running", 5)
+        try:
+            from app.services.ml_service import train_league_model
+            run_id, accuracy = await train_league_model(db, league_code)
+            await _update_job(
+                db, job_id, "done", 100,
+                result_json=json.dumps({"run_id": run_id, "accuracy": accuracy, "url": f"/league/{league_code}"})
+            )
+        except Exception as e:
+            await _update_job(db, job_id, "failed", 0, log=str(e))
+
+
+async def _run_simulate_job(job_id: int, league_code: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await _update_job(db, job_id, "running", 10)
+        try:
+            from app.services.simulation_service import run_simulation
+            standings = await run_simulation(db, league_code)
+            await _update_job(
+                db, job_id, "done", 100,
+                result_json=json.dumps({"url": f"/league/{league_code}"})
+            )
+        except Exception as e:
+            await _update_job(db, job_id, "failed", 0, log=str(e))
+
+
 @router.post("/")
 async def create_job(request: Request, job_type: str, league_code: str, background_tasks: BackgroundTasks, db=Depends(get_db_dependency)):
     cursor = await db.execute(
@@ -43,6 +73,10 @@ async def create_job(request: Request, job_type: str, league_code: str, backgrou
 
     if job_type == "update_data":
         background_tasks.add_task(_run_data_update_job, job_id, league_code)
+    elif job_type == "train":
+        background_tasks.add_task(_run_train_job, job_id, league_code)
+    elif job_type == "simulate":
+        background_tasks.add_task(_run_simulate_job, job_id, league_code)
 
     return {"job_id": job_id, "status": "queued"}
 

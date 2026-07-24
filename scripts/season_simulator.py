@@ -495,6 +495,79 @@ def plot_monte_carlo_probabilities(results, output_path='data/processed/monte_ca
         print("⚠️  matplotlib no disponible. No se generó el gráfico.")
 
 
+def simulate_season(league_code: str, n_sims: int = 500):
+    """
+    Run Monte Carlo simulation for a league season.
+
+    This is a provisional wrapper that loads generic league data, trains or loads
+    a predictor, and runs the Monte Carlo simulation. It will be refined in later tasks.
+    """
+    import pandas as pd
+    from scripts.data_manager_generic import ensure_league_data
+    from scripts.preprocess import FeatureEngineer
+    from models.predictor import LeaguePredictor
+    from scripts.model_evaluation import temporal_split
+
+    csv_path = ensure_league_data(league_code, "2526")
+    df = pd.read_csv(csv_path)
+
+    # Standardize football-data.co.uk column names
+    rename_map = {
+        "FTHG": "Home_Goals",
+        "FTAG": "Away_Goals",
+        "FTR": "Result",
+        "HS": "Home_Shots",
+        "AS": "Away_Shots",
+        "HST": "Home_ShotsOnTarget",
+        "AST": "Away_ShotsOnTarget",
+        "HF": "Home_Fouls",
+        "AF": "Away_Fouls",
+        "HC": "Home_Corners",
+        "AC": "Away_Corners",
+        "HY": "Home_Yellows",
+        "AY": "Away_Yellows",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+    df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam"])
+
+    for col in ["Home_Goals", "Away_Goals"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Derive Result from goals if column missing
+    if "Result" not in df.columns or df["Result"].isna().all():
+        df["Result"] = df.apply(
+            lambda r: "H"
+            if r["Home_Goals"] > r["Away_Goals"]
+            else ("A" if r["Home_Goals"] < r["Away_Goals"] else "D"),
+            axis=1,
+        )
+
+    # Train predictor on played matches only
+    played_df = df.dropna(subset=["Home_Goals", "Away_Goals", "Result"]).copy()
+    if played_df.empty:
+        raise ValueError(f"No played matches found for {league_code}")
+
+    engineer = FeatureEngineer(played_df)
+    X, y, _ = engineer.prepare_features()
+
+    predictor = LeaguePredictor(league_code)
+    try:
+        predictor.load_model()
+    except FileNotFoundError:
+        X_train, X_test, y_train, y_test, _, _ = temporal_split(X, y, played_df, test_size=0.2)
+        predictor.train_xgboost(X_train, y_train, X_test, y_test)
+        predictor.save_model()
+
+    simulator = SeasonSimulator()
+    results = simulator.monte_carlo_simulation(
+        df, predictor, n_sims=n_sims, stochastic=True, verbose=False
+    )
+    return results
+
+
 if __name__ == "__main__":
     import sys
     import os
