@@ -561,11 +561,29 @@ def simulate_season(league_code: str, n_sims: int = 500):
         predictor.train_xgboost(X_train, y_train, X_test, y_test)
         predictor.save_model()
 
-    simulator = SeasonSimulator()
-    results = simulator.monte_carlo_simulation(
+    # Run a single deterministic projection for the standings table
+    sim = SeasonSimulator()
+    standings_df, _ = sim.simulate(df, predictor, stochastic=True, verbose=False)
+
+    # Run Monte Carlo for probabilities
+    mc_results = sim.monte_carlo_simulation(
         df, predictor, n_sims=n_sims, stochastic=True, verbose=False
     )
-    return results
+
+    champion_probs = mc_results.get('champion_probabilities', {})
+
+    standings_list = []
+    for _, row in standings_df.iterrows():
+        team_name = row['Team']
+        standings_list.append({
+            'name': team_name,
+            'points': int(row['Points']),
+            'gf': int(row['GF']),
+            'ga': int(row['GA']),
+            'champion_prob': champion_probs.get(team_name, None),
+        })
+
+    return standings_list
 
 
 if __name__ == "__main__":
