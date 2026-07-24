@@ -78,7 +78,18 @@ async def create_job(request: Request, job_type: str, league_code: str, backgrou
     elif job_type == "simulate":
         background_tasks.add_task(_run_simulate_job, job_id, league_code)
 
-    return {"job_id": job_id, "status": "queued"}
+    # Return the job status partial so HTMX inserts it into the DOM immediately
+    job = {
+        "id": job_id,
+        "job_type": job_type,
+        "league_id": league_code,
+        "status": "queued",
+        "progress": 0,
+        "result_json": None,
+        "log": None,
+    }
+    job["result_url"] = ""
+    return templates.TemplateResponse(request, "partials/job_status.html", {"job": job})
 
 
 @router.get("/{job_id}")
@@ -100,4 +111,4 @@ async def poll_job(request: Request, job_id: int, db=Depends(get_db_dependency))
     result_json_str = job.get("result_json", "{}") or "{}"
     result = json.loads(result_json_str)
     job["result_url"] = result.get("url", "")
-    return templates.TemplateResponse("partials/job_status.html", {"request": request, "job": job})
+    return templates.TemplateResponse(request, "partials/job_status.html", {"job": job})
