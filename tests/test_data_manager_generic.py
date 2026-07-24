@@ -5,6 +5,11 @@ from unittest.mock import patch, MagicMock
 
 
 def test_ensure_league_data_downloads_when_missing():
+    # Remove file if it exists so the download path is exercised
+    existing = DATA_DIR / "SP1" / "2526.csv"
+    if existing.exists():
+        existing.unlink()
+
     with patch("scripts.data_manager_generic.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.content = b"Date,HomeTeam,AwayTeam\n2025-08-01,TeamA,TeamB\n"
