@@ -17,7 +17,7 @@
             <td class="px-4 py-2">{{ team.points }}</td>
             <td class="px-4 py-2">{{ team.gf }}</td>
             <td class="px-4 py-2">{{ team.ga }}</td>
-            <td class="px-4 py-2">{{ "%.1f"|format(team.champion_prob * 100) }}%</td>
+            <td class="px-4 py-2">{% if team.champion_prob is not none %}{{ "%.1f"|format(team.champion_prob * 100) }}%{% else %}-{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
