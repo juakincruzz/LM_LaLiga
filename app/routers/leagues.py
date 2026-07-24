@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Request, Depends
 from fastapi.templating import Jinja2Templates
 import aiosqlite
@@ -7,6 +9,17 @@ from app.config import get_league_config
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+
+async def is_offseason(db: aiosqlite.Connection, league_code: str) -> bool:
+    cursor = await db.execute(
+        "SELECT MAX(date) as last_match FROM matches WHERE league_id=?", (league_code,)
+    )
+    row = await cursor.fetchone()
+    if not row or not row["last_match"]:
+        return True
+    last_match = datetime.fromisoformat(row["last_match"])
+    return (datetime.now() - last_match).days > 30
 
 
 @router.get("/league/{league_code}")
@@ -24,6 +37,8 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
     )
     match_count = (await cursor.fetchone())["total"]
 
+    offseason = await is_offseason(db, league_code)
+
     return templates.TemplateResponse(
         request,
         "league_detail.html",
@@ -31,6 +46,7 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
             "league": config,
             "league_code": league_code,
             "db_league": dict(league_row) if league_row else None,
-            "match_count": match_count
+            "match_count": match_count,
+            "is_offseason": offseason
         }
     )
