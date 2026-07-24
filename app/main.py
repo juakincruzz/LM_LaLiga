@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from app.database import init_db
 from app.routers import dashboard
 from app.routers import jobs
+from app.routers import leagues
 
 
 @asynccontextmanager
@@ -21,3 +22,4 @@ templates = Jinja2Templates(directory="app/templates")
 
 app.include_router(dashboard.router)
 app.include_router(jobs.router)
+app.include_router(leagues.router)
