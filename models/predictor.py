@@ -306,7 +306,10 @@ class LeaguePredictor:
 
             print(f"✓ Modelo cargado desde {path}")
             print(f"  Modelo: {self.model_name}")
-            print(f"  Accuracy guardado: {self.accuracy:.4f}")
+            if self.accuracy is not None:
+                print(f"  Accuracy guardado: {self.accuracy:.4f}")
+            else:
+                print(f"  Accuracy: no disponible")
 
         except FileNotFoundError:
             print(f"❌ Archivo no encontrado: {path}")

@@ -567,7 +567,7 @@ def simulate_season(league_code: str, n_sims: int = 500):
 
     # Run Monte Carlo for probabilities
     mc_results = sim.monte_carlo_simulation(
-        df, predictor, n_sims=n_sims, stochastic=True, verbose=False
+        df, predictor, n_sims=n_sims, verbose=False
     )
 
     champion_probs = mc_results.get('champion_probabilities', {})
