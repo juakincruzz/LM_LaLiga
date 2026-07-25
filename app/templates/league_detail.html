@@ -47,7 +47,9 @@
         {% if sim_standings %}
         <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-bold mb-4">Clasificación Proyectada (Monte Carlo)</h2>
-            {% include "partials/standings_table.html" %}
+            {% with standings=sim_standings %}
+                {% include "partials/standings_table.html" %}
+            {% endwith %}
         </div>
         {% else %}
         <div class="bg-white rounded-lg shadow p-6">
