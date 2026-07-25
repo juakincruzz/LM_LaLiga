@@ -64,9 +64,10 @@ CREATE TABLE IF NOT EXISTS predictions (
 
 CREATE TABLE IF NOT EXISTS simulations (
     id INTEGER PRIMARY KEY,
-    model_run_id INTEGER NOT NULL,
+    model_run_id INTEGER,
     sim_count INTEGER,
     standings_json TEXT,
+    label TEXT DEFAULT 'Temporada actual',
     FOREIGN KEY (model_run_id) REFERENCES model_runs(id)
 );
 
@@ -103,6 +104,11 @@ async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        # Migración: columna label en simulations si no existe
+        try:
+            await db.execute("ALTER TABLE simulations ADD COLUMN label TEXT DEFAULT 'Temporada actual'")
+        except Exception:
+            pass  # ya existe
         await db.commit()
 
 

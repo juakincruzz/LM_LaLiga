@@ -42,10 +42,10 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
 
     cursor = await db.execute(
         """
-        SELECT s.standings_json
+        SELECT s.standings_json, s.label
         FROM simulations s
-        JOIN model_runs mr ON s.model_run_id = mr.id
-        WHERE mr.league_code = ?
+        LEFT JOIN model_runs mr ON s.model_run_id = mr.id
+        WHERE mr.league_code = ? OR s.model_run_id IS NULL
         ORDER BY s.id DESC
         LIMIT 1
         """,
@@ -53,6 +53,9 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
     )
     sim_row = await cursor.fetchone()
     sim_standings = json.loads(sim_row["standings_json"]) if sim_row else None
+    sim_label = sim_row["label"] if sim_row else None
+
+    next_label = config.get("next_season", {}).get("label", "próxima temporada")
 
     return templates.TemplateResponse(
         request,
@@ -63,6 +66,8 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
             "db_league": dict(league_row) if league_row else None,
             "match_count": match_count,
             "is_offseason": offseason,
-            "sim_standings": sim_standings
+            "sim_standings": sim_standings,
+            "sim_label": sim_label,
+            "next_season_label": next_label
         }
     )

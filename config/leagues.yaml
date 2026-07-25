@@ -4,6 +4,15 @@ SP1:
   country: "Spain"
   teams: 20
   transfermarkt_league_id: 157
+  next_season:
+    code: "2627"
+    label: "26/27"
+    # Edita estos nombres cuando conozcas los ascendidos reales.
+    # Deben ser 3 para La Liga (20 equipos, 3 descensos).
+    promoted_teams:
+      - "Ascendido 1"
+      - "Ascendido 2"
+      - "Ascendido 3"
 
 E0:
   name: "Premier League"
@@ -11,6 +20,13 @@ E0:
   country: "England"
   teams: 20
   transfermarkt_league_id: 131
+  next_season:
+    code: "2627"
+    label: "26/27"
+    promoted_teams:
+      - "Promoted 1"
+      - "Promoted 2"
+      - "Promoted 3"
 
 D1:
   name: "Bundesliga"
@@ -18,6 +34,13 @@ D1:
   country: "Germany"
   teams: 18
   transfermarkt_league_id: 135
+  next_season:
+    code: "2627"
+    label: "26/27"
+    # Bundesliga: 18 equipos, 2 descensos directos
+    promoted_teams:
+      - "Aufgestiegen 1"
+      - "Aufgestiegen 2"
 
 I1:
   name: "Serie A"
@@ -25,6 +48,13 @@ I1:
   country: "Italy"
   teams: 20
   transfermarkt_league_id: 157
+  next_season:
+    code: "2627"
+    label: "26/27"
+    promoted_teams:
+      - "Promossa 1"
+      - "Promossa 2"
+      - "Promossa 3"
 
 F1:
   name: "Ligue 1"
@@ -32,3 +62,10 @@ F1:
   country: "France"
   teams: 18
   transfermarkt_league_id: 145
+  next_season:
+    code: "2627"
+    label: "26/27"
+    # Ligue 1: 18 equipos, 2 descensos directos
+    promoted_teams:
+      - "Promu 1"
+      - "Promu 2"

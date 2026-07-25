@@ -62,6 +62,21 @@ async def _run_simulate_job(job_id: int, league_code: str):
             await _update_job(db, job_id, "failed", 0, log=str(e))
 
 
+async def _run_project_next_season_job(job_id: int, league_code: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        await _update_job(db, job_id, "running", 10)
+        try:
+            from app.services.next_season_service import project_next_season
+            standings = await project_next_season(db, league_code)
+            await _update_job(
+                db, job_id, "done", 100,
+                result_json=json.dumps({"url": f"/league/{league_code}"})
+            )
+        except Exception as e:
+            await _update_job(db, job_id, "failed", 0, log=str(e))
+
+
 @router.post("/")
 async def create_job(request: Request, job_type: str, league_code: str, background_tasks: BackgroundTasks, db=Depends(get_db_dependency)):
     cursor = await db.execute(
@@ -77,6 +92,8 @@ async def create_job(request: Request, job_type: str, league_code: str, backgrou
         background_tasks.add_task(_run_train_job, job_id, league_code)
     elif job_type == "simulate":
         background_tasks.add_task(_run_simulate_job, job_id, league_code)
+    elif job_type == "project_next_season":
+        background_tasks.add_task(_run_project_next_season_job, job_id, league_code)
 
     # Return the job status partial so HTMX inserts it into the DOM immediately
     job = {

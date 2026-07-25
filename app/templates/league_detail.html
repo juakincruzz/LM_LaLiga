@@ -39,6 +39,12 @@
                         class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition">
                     Simular temporada
                 </button>
+                <button hx-post="/api/jobs/?job_type=project_next_season&league_code={{ league_code }}"
+                        hx-target="#job-container"
+                        hx-swap="beforeend"
+                        class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition">
+                    Proyectar {{ next_season_label }}
+                </button>
             </div>
         </div>
 
@@ -46,7 +52,9 @@
 
         {% if sim_standings %}
         <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-bold mb-4">Clasificación Proyectada (Monte Carlo)</h2>
+            <h2 class="text-lg font-bold mb-4">
+                {{ sim_label or "Clasificación Proyectada" }} (Monte Carlo)
+            </h2>
             {% with standings=sim_standings %}
                 {% include "partials/standings_table.html" %}
             {% endwith %}
