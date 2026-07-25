@@ -7,17 +7,10 @@ from scripts.season_simulator import simulate_season
 
 async def run_simulation(db: aiosqlite.Connection, league_code: str, sim_count: int = 500):
     """Run Monte Carlo and save results."""
-    # Resolve league_id from code
-    cursor = await db.execute("SELECT id FROM leagues WHERE code=?", (league_code,))
-    row = await cursor.fetchone()
-    if not row:
-        raise ValueError(f"League {league_code} not found in database")
-    league_id = row["id"]
-
-    # Find latest completed model run
+    # Find latest completed model run for this league
     cursor = await db.execute(
-        "SELECT id FROM model_runs WHERE league_id=? AND status='completed' ORDER BY created_at DESC LIMIT 1",
-        (league_id,)
+        "SELECT id FROM model_runs WHERE league_code=? AND status='completed' ORDER BY created_at DESC LIMIT 1",
+        (league_code,)
     )
     row = await cursor.fetchone()
     if not row:

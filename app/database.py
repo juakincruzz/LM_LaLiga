@@ -16,15 +16,15 @@ CREATE TABLE IF NOT EXISTS leagues (
 
 CREATE TABLE IF NOT EXISTS teams (
     id INTEGER PRIMARY KEY,
-    league_id INTEGER NOT NULL,
+    league_code TEXT NOT NULL,
     name TEXT NOT NULL,
     alias TEXT,
-    FOREIGN KEY (league_id) REFERENCES leagues(id)
+    FOREIGN KEY (league_code) REFERENCES leagues(code)
 );
 
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY,
-    league_id INTEGER NOT NULL,
+    league_code TEXT NOT NULL,
     date TEXT NOT NULL,
     home_team_id INTEGER,
     away_team_id INTEGER,
@@ -34,20 +34,20 @@ CREATE TABLE IF NOT EXISTS matches (
     season TEXT,
     matchday INTEGER,
     status TEXT DEFAULT 'played',
-    FOREIGN KEY (league_id) REFERENCES leagues(id),
+    FOREIGN KEY (league_code) REFERENCES leagues(code),
     FOREIGN KEY (home_team_id) REFERENCES teams(id),
     FOREIGN KEY (away_team_id) REFERENCES teams(id)
 );
 
 CREATE TABLE IF NOT EXISTS model_runs (
     id INTEGER PRIMARY KEY,
-    league_id INTEGER NOT NULL,
+    league_code TEXT NOT NULL,
     created_at TEXT,
     status TEXT DEFAULT 'pending',
     model_type TEXT,
     accuracy REAL,
     log TEXT,
-    FOREIGN KEY (league_id) REFERENCES leagues(id)
+    FOREIGN KEY (league_code) REFERENCES leagues(code)
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS simulations (
 
 CREATE TABLE IF NOT EXISTS transfers (
     id INTEGER PRIMARY KEY,
-    league_id INTEGER NOT NULL,
+    league_code TEXT NOT NULL,
     team_id INTEGER NOT NULL,
     player_name TEXT,
     position TEXT,
@@ -81,14 +81,14 @@ CREATE TABLE IF NOT EXISTS transfers (
     from_club TEXT,
     to_club TEXT,
     date TEXT,
-    FOREIGN KEY (league_id) REFERENCES leagues(id),
+    FOREIGN KEY (league_code) REFERENCES leagues(code),
     FOREIGN KEY (team_id) REFERENCES teams(id)
 );
 
 CREATE TABLE IF NOT EXISTS job_status (
     id INTEGER PRIMARY KEY,
     job_type TEXT NOT NULL,
-    league_id INTEGER,
+    league_code TEXT,
     status TEXT DEFAULT 'queued',
     progress INTEGER DEFAULT 0,
     result_json TEXT,
@@ -103,12 +103,6 @@ async def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
-        # Migrate: add log column to job_status if missing
-        try:
-            await db.execute("ALTER TABLE job_status ADD COLUMN log TEXT")
-            await db.commit()
-        except Exception:
-            pass
         await db.commit()
 
 

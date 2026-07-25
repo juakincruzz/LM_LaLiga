@@ -14,7 +14,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 async def is_offseason(db: aiosqlite.Connection, league_code: str) -> bool:
     cursor = await db.execute(
-        "SELECT MAX(date) as last_match FROM matches WHERE league_id=?", (league_code,)
+        "SELECT MAX(date) as last_match FROM matches WHERE league_code=?", (league_code,)
     )
     row = await cursor.fetchone()
     if not row or not row["last_match"]:
@@ -34,7 +34,7 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
 
     # Count matches
     cursor = await db.execute(
-        "SELECT COUNT(*) as total FROM matches WHERE league_id=?", (league_code,)
+        "SELECT COUNT(*) as total FROM matches WHERE league_code=?", (league_code,)
     )
     match_count = (await cursor.fetchone())["total"]
 
@@ -45,7 +45,7 @@ async def league_detail(request: Request, league_code: str, db=Depends(get_db_de
         SELECT s.standings_json
         FROM simulations s
         JOIN model_runs mr ON s.model_run_id = mr.id
-        WHERE mr.league_id = ?
+        WHERE mr.league_code = ?
         ORDER BY s.id DESC
         LIMIT 1
         """,

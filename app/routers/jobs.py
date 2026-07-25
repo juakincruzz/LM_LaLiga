@@ -65,7 +65,7 @@ async def _run_simulate_job(job_id: int, league_code: str):
 @router.post("/")
 async def create_job(request: Request, job_type: str, league_code: str, background_tasks: BackgroundTasks, db=Depends(get_db_dependency)):
     cursor = await db.execute(
-        "INSERT INTO job_status (job_type, league_id, status, progress, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO job_status (job_type, league_code, status, progress, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         (job_type, league_code, "queued", 0, datetime.now().isoformat(), datetime.now().isoformat())
     )
     await db.commit()
@@ -82,7 +82,7 @@ async def create_job(request: Request, job_type: str, league_code: str, backgrou
     job = {
         "id": job_id,
         "job_type": job_type,
-        "league_id": league_code,
+        "league_code": league_code,
         "status": "queued",
         "progress": 0,
         "result_json": None,

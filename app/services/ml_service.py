@@ -5,25 +5,15 @@ from scripts.preprocess_generic import preprocess_league
 from models.predictor import LeaguePredictor
 
 
-async def _get_league_id(db: aiosqlite.Connection, league_code: str) -> int:
-    cursor = await db.execute("SELECT id FROM leagues WHERE code=?", (league_code,))
-    row = await cursor.fetchone()
-    if not row:
-        raise ValueError(f"League {league_code} not found in database")
-    return row["id"]
-
-
 async def train_league_model(db: aiosqlite.Connection, league_code: str, season: str = "2526"):
     """Train and save a model for a league."""
-    league_id = await _get_league_id(db, league_code)
-
     # Preprocess
     X, y = preprocess_league(league_code, season)
 
     # Create model run record
     cursor = await db.execute(
-        "INSERT INTO model_runs (league_id, created_at, status, model_type) VALUES (?, ?, ?, ?)",
-        (league_id, datetime.now().isoformat(), "running", "xgboost")
+        "INSERT INTO model_runs (league_code, created_at, status, model_type) VALUES (?, ?, ?, ?)",
+        (league_code, datetime.now().isoformat(), "running", "xgboost")
     )
     await db.commit()
     run_id = cursor.lastrowid
