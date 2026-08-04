@@ -1,6 +1,6 @@
 import aiosqlite
 from app.database import DB_PATH
-from app.config import list_leagues
+from app.config import get_current_season, list_leagues
 
 
 async def seed_leagues():
@@ -11,7 +11,7 @@ async def seed_leagues():
                 INSERT OR IGNORE INTO leagues (code, name, country, season, is_active)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (league["code"], league["name"], league.get("country"), "2526", 1)
+                (league["code"], league["name"], league.get("country"), get_current_season(), 1)
             )
         await db.commit()
 

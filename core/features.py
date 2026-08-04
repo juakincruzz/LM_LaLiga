@@ -1,0 +1,98 @@
+"""Construcción de la matriz de entrenamiento a partir de LeagueState.
+
+Sustituye a `FeatureEngineer.calculate_rolling_features`, que escribía las 35
+columnas celda a celda con `df.at[idx, col] = ...` sobre un DataFrame que iba
+creciendo (lento y frágil bajo pandas 3).
+"""
+import numpy as np
+import pandas as pd
+
+from core.state import LeagueState
+
+# Orden canónico de las features. El modelo se entrena y predice con este orden,
+# así que cambiarlo invalida los .pkl guardados: hay que reentrenar.
+FEATURE_COLS = [
+    # Estadísticas generales acumuladas
+    "Home_Matches", "Away_Matches",
+    "Home_Win_Rate", "Away_Win_Rate",
+    "Home_Points_Per_Game", "Away_Points_Per_Game",
+    "Home_Goals_For_Avg", "Away_Goals_For_Avg",
+    "Home_Goals_Against_Avg", "Away_Goals_Against_Avg",
+
+    # Forma reciente
+    "Home_Form_3", "Away_Form_3",
+    "Home_Form_5", "Away_Form_5",
+
+    # Rendimiento local/visitante específico
+    "Home_Home_Win_Rate", "Away_Away_Win_Rate",
+    "Home_Home_Points_Per_Game", "Away_Away_Points_Per_Game",
+    "Home_Home_Goals_For_Avg", "Away_Away_Goals_For_Avg",
+    "Home_Home_Goals_Against_Avg", "Away_Away_Goals_Against_Avg",
+    "Home_Home_Form_3", "Away_Away_Form_3",
+
+    # Diferencias y factor campo
+    "Points_Diff", "Win_Rate_Diff",
+    "Goals_For_Diff", "Goals_Against_Diff",
+    "Form_5_Diff", "Home_Advantage",
+
+    # Descanso y enfrentamientos directos
+    "Home_Days_Rest", "Away_Days_Rest",
+    "H2H_Matches", "H2H_Home_Points_Per_Game", "H2H_Home_Win_Rate",
+]
+
+TARGET_MAP = {"H": 1, "D": 0, "A": -1}
+
+
+def feature_row(state: LeagueState, home_team: str, away_team: str, current_date) -> pd.DataFrame:
+    """Una fila con las features de un partido, en el orden que espera el modelo."""
+    return pd.DataFrame([state.features(home_team, away_team, current_date)], columns=FEATURE_COLS)
+
+
+def feature_vector(state: LeagueState, home_team: str, away_team: str, current_date) -> np.ndarray:
+    """Igual que `feature_row` pero como array 1x35.
+
+    Es lo que usa el simulador: construir un DataFrame por partido hacía que la
+    conversión a XGBoost costara más que la propia predicción.
+    """
+    f = state.features(home_team, away_team, current_date)
+    return np.array([[f[col] for col in FEATURE_COLS]], dtype=np.float32)
+
+
+def build_training_matrix(df: pd.DataFrame, reset_per_season: bool = True):
+    """Recorre los partidos en orden y genera (X, y, df).
+
+    Cada fila se calcula ANTES de aplicar su propio partido al estado: ahí está
+    la garantía de que no hay data leakage.
+    """
+    # mergesort = estable. Con quicksort (el defecto), dos ordenaciones del
+    # mismo dataframe barajan de forma distinta los partidos de una misma
+    # fecha, y las features de esos partidos salían diferentes en cada pasada.
+    df = df.copy().sort_values("Date", kind="mergesort").reset_index(drop=True)
+
+    state = LeagueState()
+    temporada_actual = None
+    filas = []
+
+    for row in df.itertuples(index=False):
+        if reset_per_season:
+            temporada = getattr(row, "Season", None)
+            if temporada_actual is not None and temporada != temporada_actual:
+                state.start_new_season()
+            temporada_actual = temporada
+
+        filas.append(state.features(row.HomeTeam, row.AwayTeam, row.Date))
+        state.apply_match(
+            row.HomeTeam,
+            row.AwayTeam,
+            int(row.Home_Goals),
+            int(row.Away_Goals),
+            row.Result,
+            row.Date,
+        )
+
+    X = pd.DataFrame(filas, columns=FEATURE_COLS).fillna(0)
+    y = df["Result"].map(TARGET_MAP).rename("Target")
+
+    df = pd.concat([df, X], axis=1)
+    df["Target"] = y
+    return X, y, df

@@ -14,12 +14,16 @@
             </span>
         </div>
         {% if job.status in ['queued', 'running'] %}
-        <div class="w-full bg-gray-200 rounded-full h-2.5">
+        <div class="w-full bg-gray-200 rounded-full h-2.5"
+             role="progressbar" aria-valuenow="{{ job.progress }}" aria-valuemin="0" aria-valuemax="100">
             <div class="bg-blue-600 h-2.5 rounded-full progress-bar" style="width: {{ job.progress }}%"></div>
         </div>
-        <p class="text-xs text-gray-500 mt-1">{{ job.progress }}%</p>
+        <p class="text-xs text-gray-500 mt-1">{{ job.progress }}% — {{ job.message or 'En cola' }}</p>
         {% elif job.status == 'done' %}
-        <p class="text-green-700 text-sm">Completado. <a href="{{ job.result_url }}" class="underline">Ver resultados</a></p>
+        <p class="text-green-700 text-sm">
+            {{ job.message or 'Completado' }}.
+            <a href="{{ job.result_url }}" class="underline">Ver resultados</a>
+        </p>
         {% elif job.status == 'failed' %}
         <p class="text-red-700 text-sm">Error: {{ job.log }}</p>
         {% endif %}

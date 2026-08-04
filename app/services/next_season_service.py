@@ -12,13 +12,14 @@ Estrategia:
 """
 import json
 from collections import defaultdict
-from pathlib import Path
+from datetime import datetime
 
 import aiosqlite
 import numpy as np
 import pandas as pd
 
-from app.config import get_league_config
+from app.config import get_current_season, get_league_config
+from scripts.data_manager_generic import league_csv_path
 
 # Ratings típicos de un equipo recién ascendido (relativos a media de liga = 1.0)
 PROMOTED_ATTACK = 0.75
@@ -31,7 +32,7 @@ MAX_TRANSFER_SHIFT = 0.15
 
 
 def _load_season_df(league_code: str, season: str) -> pd.DataFrame:
-    path = Path(f"data/raw/{league_code}/{season}.csv")
+    path = league_csv_path(league_code, season)
     if not path.exists():
         raise FileNotFoundError(f"No hay datos en {path}. Pulsa 'Actualizar datos' primero.")
     df = pd.read_csv(path)
@@ -160,7 +161,7 @@ def _simulate_one_season(teams, ratings, fixtures, league_avg_home, league_avg_a
 async def project_next_season(
     db: aiosqlite.Connection,
     league_code: str,
-    season: str = "2526",
+    season: str | None = None,
     sim_count: int = 500,
     seed: int | None = None,
 ) -> list[dict]:
@@ -171,7 +172,7 @@ async def project_next_season(
     promoted = next_cfg.get("promoted_teams", [])
     label = next_cfg.get("label", "próxima temporada")
 
-    df = _load_season_df(league_code, season)
+    df = _load_season_df(league_code, season or get_current_season())
     stats, league_avg_home, league_avg_away, league_avg_team = _team_stats(df)
 
     # Descendidos: últimos N según nº de ascendidos configurados
@@ -219,8 +220,11 @@ async def project_next_season(
             "points": round(float(np.mean(points_acc[team]))),
             "gf": round(float(np.mean(gf_acc[team]))),
             "ga": round(float(np.mean(ga_acc[team]))),
-            "champion_prob": champion_counts[team] / sim_count if champion_counts[team] else None,
-            "relegation_prob": relegation_counts[team] / sim_count if relegation_counts[team] else None,
+            # 0.0 es un resultado ("no ganó ninguna simulación"), no un hueco:
+            # devolver None hacía que la tabla mostrara '—', igual que si no se
+            # hubiera calculado nada.
+            "champion_prob": champion_counts[team] / sim_count,
+            "relegation_prob": relegation_counts[team] / sim_count,
         })
     projected.sort(key=lambda t: t["points"], reverse=True)
 
@@ -233,8 +237,20 @@ async def project_next_season(
     model_run_id = row["id"] if row else None
 
     await db.execute(
-        "INSERT INTO simulations (model_run_id, sim_count, standings_json, label) VALUES (?, ?, ?, ?)",
-        (model_run_id, sim_count, json.dumps(projected), f"Proyección {label}"),
+        """
+        INSERT INTO simulations
+            (model_run_id, league_code, sim_count, standings_json, label, seed, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            model_run_id,
+            league_code,
+            sim_count,
+            json.dumps(projected),
+            f"Proyección {label}",
+            seed,
+            datetime.now().isoformat(),
+        ),
     )
     await db.commit()
 

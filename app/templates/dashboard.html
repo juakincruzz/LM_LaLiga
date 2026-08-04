@@ -14,15 +14,22 @@
                 <p class="text-sm text-gray-500">{{ league.country }}</p>
             </div>
             <span class="px-2 py-1 text-xs rounded {{ 'bg-green-100 text-green-800' if league.is_active else 'bg-gray-100 text-gray-600' }}">
-                {{ 'Activa' if league.is_active else 'Off-season' }}
+                {{ 'Con datos' if league.is_active else 'Sin datos' }}
             </span>
         </div>
 
-        <p class="text-sm text-gray-600 mb-4">
-            {% if league.last_updated %}
-                Última actualización: {{ league.last_updated }}
+        <p class="text-sm text-gray-600 mb-1">
+            {% if league.total_partidos %}
+                {{ league.partidos_jugados }} de {{ league.total_partidos }} partidos jugados
             {% else %}
-                Sin datos cargados
+                Sin partidos cargados
+            {% endif %}
+        </p>
+        <p class="text-sm text-gray-500 mb-4">
+            {% if league.last_updated %}
+                Actualizado: {{ league.last_updated[:16].replace('T', ' ') }}
+            {% else %}
+                Pulsa «Actualizar datos» dentro de la liga
             {% endif %}
         </p>
 

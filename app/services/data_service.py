@@ -1,13 +1,91 @@
-import aiosqlite
+"""Ingesta de datos de una liga: descarga → normaliza → BD.
+
+Punto único donde entran los partidos al sistema. Antes esta función solo
+estampaba un timestamp: la tabla `matches` nunca se rellenaba, así que la
+página de liga mostraba siempre 0 partidos y creía estar en off-season.
+"""
 from datetime import datetime
-from scripts.data_manager_generic import ensure_league_data
+
+import aiosqlite
+import pandas as pd
+
+from app.config import get_current_season
+from core.dataset import normalize_frame, read_csv
+from scripts.data_manager_generic import download_league_data
 
 
-async def update_league_data(db: aiosqlite.Connection, league_code: str, season: str = "2526"):
-    """Download CSV and update league last_updated timestamp."""
-    ensure_league_data(league_code, season)
+async def _upsert_teams(db: aiosqlite.Connection, league_code: str, names: list[str]) -> dict[str, int]:
+    """Inserta los equipos que falten y devuelve el mapa nombre → id."""
+    for name in names:
+        await db.execute(
+            "INSERT INTO teams (league_code, name) VALUES (?, ?) "
+            "ON CONFLICT(league_code, name) DO NOTHING",
+            (league_code, name),
+        )
+
+    cursor = await db.execute("SELECT id, name FROM teams WHERE league_code=?", (league_code,))
+    return {row["name"]: row["id"] for row in await cursor.fetchall()}
+
+
+async def _upsert_matches(
+    db: aiosqlite.Connection, league_code: str, season: str, df: pd.DataFrame, team_ids: dict[str, int]
+) -> int:
+    """Inserta o actualiza los partidos. Idempotente gracias a idx_matches_unique,
+    así que pulsar 'Actualizar datos' dos veces no duplica nada."""
+    filas = []
+    for row in df.itertuples(index=False):
+        home_goals = getattr(row, "Home_Goals", None)
+        away_goals = getattr(row, "Away_Goals", None)
+        jugado = pd.notna(home_goals) and pd.notna(away_goals)
+        filas.append(
+            (
+                league_code,
+                row.Date.date().isoformat(),
+                team_ids.get(row.HomeTeam),
+                team_ids.get(row.AwayTeam),
+                int(home_goals) if jugado else None,
+                int(away_goals) if jugado else None,
+                row.Result if jugado else None,
+                season,
+                "played" if jugado else "scheduled",
+            )
+        )
+
+    await db.executemany(
+        """
+        INSERT INTO matches
+            (league_code, date, home_team_id, away_team_id, home_goals, away_goals, result, season, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(league_code, season, date, home_team_id, away_team_id) DO UPDATE SET
+            home_goals = excluded.home_goals,
+            away_goals = excluded.away_goals,
+            result     = excluded.result,
+            status     = excluded.status
+        """,
+        filas,
+    )
+    return len(filas)
+
+
+async def update_league_data(db: aiosqlite.Connection, league_code: str, season: str | None = None) -> dict:
+    """Descarga el CSV de la temporada y vuelca equipos y partidos en la BD.
+
+    Descarga siempre (no usa la caché en disco): el sentido del botón
+    'Actualizar datos' es traer los resultados de la última jornada.
+    """
+    season = season or get_current_season()
+    path = download_league_data(league_code, season)
+    df = normalize_frame(read_csv(path), season=season)
+
+    nombres = sorted(set(df["HomeTeam"]) | set(df["AwayTeam"]))
+    team_ids = await _upsert_teams(db, league_code, nombres)
+    n_partidos = await _upsert_matches(db, league_code, season, df, team_ids)
+
     await db.execute(
         "UPDATE leagues SET last_updated=?, season=? WHERE code=?",
-        (datetime.now().isoformat(), season, league_code)
+        (datetime.now().isoformat(), season, league_code),
     )
     await db.commit()
+
+    jugados = int(df["Result"].notna().sum())
+    return {"equipos": len(nombres), "partidos": n_partidos, "jugados": jugados}

@@ -18,8 +18,9 @@
             </a>
             <div class="flex gap-4 text-sm">
                 <a href="/" class="hover:text-blue-200 transition">Dashboard</a>
-                {% for league in ['SP1','E0','D1','I1','F1'] %}
-                <a href="/league/{{ league }}" class="hover:text-blue-200 transition uppercase">{{ league }}</a>
+                {% for liga in ligas %}
+                <a href="/league/{{ liga.code }}" class="hover:text-blue-200 transition"
+                   title="{{ liga.name }}">{{ liga.code }}</a>
                 {% endfor %}
             </div>
         </div>

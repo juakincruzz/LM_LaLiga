@@ -1,5 +1,3 @@
-# CONTRIBUTING.md
-// filepath: /home/joaquin/Escritorio/PROYECTOS/LM_LaLiga/CONTRIBUTING.md
 # Guía de Contribución
 
 Gracias por tu interés en contribuir a LM_LaLiga.
@@ -15,6 +13,8 @@ Gracias por tu interés en contribuir a LM_LaLiga.
 ## Recomendaciones
 
 - Mantén el código limpio y bien documentado
-- Añade tests si es posible
+- Añade tests si es posible — `pytest` corre la suite completa (los lentos, marcados
+  `slow`, se excluyen por defecto; `pytest -m slow` los incluye)
 - Actualiza el README si cambias funcionalidades
-- Sigue el estilo de código existente
+- Sigue el estilo de código existente: identificadores y columnas de BD en inglés,
+  strings de cara al usuario y comentarios en español

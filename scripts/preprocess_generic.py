@@ -1,39 +1,26 @@
-"""Generic preprocessing for any league.
+"""Preprocesado genérico para cualquier liga.
 
-Provisional implementation — Task 13 will provide the definitive generic pipeline.
-For now, loads league CSV via data_manager_generic and reuses FeatureEngineer.
+Fino a propósito: la carga vive en core.dataset y las features en core.features.
 """
 
-import pandas as pd
-from scripts.data_manager_generic import ensure_league_data
-from scripts.preprocess import FeatureEngineer
+from app.config import get_training_seasons
+from core.dataset import load_seasons, played_only
+from core.features import build_training_matrix
 
 
-def preprocess_league(league_code: str, season: str = "2526"):
-    """Load and preprocess league data, returning X, y."""
-    csv_path = ensure_league_data(league_code, season)
-    df = pd.read_csv(csv_path)
+def preprocess_league(league_code: str, seasons: list[str] | None = None):
+    """Carga y preprocesa una liga sobre varias temporadas. Devuelve (X, y, df_jugados).
 
-    # Standardize football-data.co.uk column names
-    rename_map = {
-        "FTHG": "Home_Goals",
-        "FTAG": "Away_Goals",
-        "FTR": "Result",
-    }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    Por defecto entrena con `app.config.get_training_seasons` (la profundidad
+    histórica configurada). `core.features.build_training_matrix` resetea los
+    acumuladores en cada cambio de temporada mientras conserva el histórico de
+    enfrentamientos directos (`reset_per_season=True`, su valor por defecto).
+    """
+    if seasons is None:
+        seasons = get_training_seasons(league_code)
 
-    # Parse dates (football-data.co.uk uses DD/MM/YYYY)
-    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
-
-    # Keep only played matches with complete data
-    df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam", "Home_Goals", "Away_Goals", "Result"])
-    df["Home_Goals"] = pd.to_numeric(df["Home_Goals"], errors="coerce")
-    df["Away_Goals"] = pd.to_numeric(df["Away_Goals"], errors="coerce")
-    df = df.dropna(subset=["Home_Goals", "Away_Goals"])
-
+    df = played_only(load_seasons(league_code, seasons))
     if df.empty:
-        raise ValueError(f"No valid played matches found for {league_code}/{season}")
+        raise ValueError(f"No hay partidos jugados en {league_code} ({', '.join(seasons)})")
 
-    engineer = FeatureEngineer(df)
-    X, y, _ = engineer.prepare_features()
-    return X, y
+    return build_training_matrix(df)

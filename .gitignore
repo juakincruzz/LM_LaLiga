@@ -45,7 +45,15 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Models y datos grandes (opcional)
+# Modelos y datos generados
 models/*.pkl
-data/raw/*.csv
-data/processed/*.csv
+# ** cruza directorios: data/raw/*.csv NO cubría data/raw/SP1/2526.csv
+data/raw/**/*.csv
+data/processed/
+data/db.sqlite*
+
+# Caché de pytest
+.pytest_cache/
+
+# Los CSV de tests/fixtures sí se versionan: son inmutables y la suite depende de ellos
+!tests/fixtures/*.csv

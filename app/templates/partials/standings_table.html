@@ -1,26 +1,30 @@
+<div class="overflow-x-auto">
 <table class="w-full text-sm text-left">
+    <caption class="sr-only">Clasificación proyectada con probabilidades de título y descenso</caption>
     <thead class="bg-gray-100 text-gray-700">
         <tr>
-            <th class="px-4 py-2">Pos</th>
-            <th class="px-4 py-2">Equipo</th>
-            <th class="px-4 py-2">Pts</th>
-            <th class="px-4 py-2">GF</th>
-            <th class="px-4 py-2">GC</th>
-            <th class="px-4 py-2">Prob. Título</th>
-            <th class="px-4 py-2">Prob. Descenso</th>
+            <th scope="col" class="px-4 py-2">Pos</th>
+            <th scope="col" class="px-4 py-2">Equipo</th>
+            <th scope="col" class="px-4 py-2">Pts</th>
+            <th scope="col" class="px-4 py-2">GF</th>
+            <th scope="col" class="px-4 py-2">GC</th>
+            <th scope="col" class="px-4 py-2">Prob. Título</th>
+            <th scope="col" class="px-4 py-2">Prob. Descenso</th>
         </tr>
     </thead>
     <tbody>
         {% for team in standings %}
         <tr class="border-b hover:bg-gray-50">
             <td class="px-4 py-2 font-semibold">{{ loop.index }}</td>
-            <td class="px-4 py-2">{{ team.name }}</td>
+            <th scope="row" class="px-4 py-2 font-normal">{{ team.name }}</th>
             <td class="px-4 py-2">{{ team.points }}</td>
             <td class="px-4 py-2">{{ team.gf }}</td>
             <td class="px-4 py-2">{{ team.ga }}</td>
-            <td class="px-4 py-2">{% if team.champion_prob is defined and team.champion_prob is not none %}{{ "%.1f"|format(team.champion_prob * 100) }}%{% else %}-{% endif %}</td>
-            <td class="px-4 py-2">{% if team.relegation_prob is defined and team.relegation_prob is not none %}{{ "%.1f"|format(team.relegation_prob * 100) }}%{% else %}-{% endif %}</td>
+            {# '—' significa "no calculado"; un 0,0 % es un dato, no un hueco #}
+            <td class="px-4 py-2">{% if team.champion_prob is not none %}{{ "%.1f"|format(team.champion_prob * 100) }}%{% else %}—{% endif %}</td>
+            <td class="px-4 py-2">{% if team.relegation_prob is not none %}{{ "%.1f"|format(team.relegation_prob * 100) }}%{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+</div>

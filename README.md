@@ -1,391 +1,145 @@
-# LM_LaLiga - Predicción y análisis de La Liga
+# LM_LaLiga — Dashboard de predicción para 5 ligas europeas
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
-![pandas](https://img.shields.io/badge/Data-pandas-green)
-![scikit-learn](https://img.shields.io/badge/ML-scikit--learn-orange)
+![Python](https://img.shields.io/badge/Python-3.12+-blue)
+![FastAPI](https://img.shields.io/badge/Web-FastAPI-009688)
 ![XGBoost](https://img.shields.io/badge/ML-XGBoost-red)
 
-Proyecto de **Machine Learning y análisis de datos** aplicado a partidos y clasificación de **La Liga española**.
-
-El repositorio combina procesamiento de datos históricos, creación de características, entrenamiento de modelos de clasificación y proyección de la clasificación final a partir de datos actuales.
-
----
-
-## Descripción
-
-El objetivo del proyecto es analizar datos de partidos de La Liga y construir herramientas para:
-
-- Cargar y limpiar datos históricos de partidos.
-- Crear características estadísticas para modelos de Machine Learning.
-- Entrenar modelos para predecir el resultado de partidos.
-- Obtener o actualizar datos de clasificación.
-- Proyectar la clasificación final de la temporada.
-- Estimar un campeón probable a partir de puntos actuales y ritmo de puntuación.
-
-> Nota: el modelo de Machine Learning está orientado a predecir resultados de partidos. La predicción del campeón se realiza mediante una proyección de clasificación basada en puntos por partido, no mediante una predicción directa entrenada sobre campeones históricos.
+Dashboard web que descarga resultados de fútbol, entrena un modelo de resultados de
+partido y simula el resto de la temporada (o proyecta la siguiente) para **5 ligas
+europeas**: La Liga, Premier League, Bundesliga, Serie A y Ligue 1.
 
 ---
 
-## Tecnologías utilizadas
+## Qué hace, en una frase por liga
 
-- Python 3.8+
-- pandas
-- numpy
-- scikit-learn
-- XGBoost
-- LightGBM
-- requests
-- BeautifulSoup4
-- matplotlib
-- seaborn
-- Jupyter
+Por cada liga puedes, desde el navegador:
 
----
+- **Actualizar datos** — descarga la temporada en curso de football-data.co.uk y la
+  vuelca en SQLite (equipos y partidos).
+- **Entrenar modelo** — entrena un XGBoost con 5 temporadas de historia y reporta su
+  precisión **fuera de muestra**, junto a tres baselines para poder interpretarla.
+- **Simular temporada** — Monte Carlo de los partidos que quedan por jugar, usando el
+  modelo entrenado. Solo tiene sentido si la temporada no ha terminado.
+- **Proyectar la próxima temporada** — fuera de temporada: ratings de ataque/defensa a
+  partir de la temporada acabada, ascendidos configurados, Monte Carlo con goles
+  Poisson. No usa el modelo de ML (no hay partidos que predecir todavía).
+- **Analizar fichajes** *(opcional)* — altas/bajas vía una instancia local de
+  [Transfermarkt API](https://github.com/felipeall/transfermarkt-api), para ajustar la
+  proyección de la próxima temporada.
 
-## Componentes principales
+## Sobre la precisión del modelo — léase antes de esperar un 90 %
 
-| Componente | Descripción |
-|---|---|---|
-| `run_full_pipeline.py` | **Pipeline unificado**: descarga datos si faltan, entrena el modelo, proyecta el campeón y ejecuta Monte Carlo. |
-| `run_pipeline.py` | Ejecuta el pipeline de Machine Learning con validación temporal. |
-| `run_temporal_validation.py` | Ejecuta walk-forward validation para evaluar el modelo de forma robusta. |
-| `run_monte_carlo.py` | Ejecuta simulaciones Monte Carlo para estimar probabilidades de campeón, Champions y descenso. |
-| `scripts/data_manager.py` | Verifica la disponibilidad de datos locales y descarga automáticamente desde football-data.org si faltan. |
-| `scripts/load_data.py` | Carga CSVs históricos, normaliza columnas, limpia datos y guarda datasets procesados. |
-| `scripts/preprocess.py` | Genera características estadísticas de equipos y partidos sin data leakage. |
-| `scripts/model_evaluation.py` | Proporciona división temporal simple y walk-forward validation. |
-| `scripts/season_simulator.py` | Simula los partidos restantes de la temporada usando el modelo de ML. |
-| `models/predictor.py` | Implementa modelos de clasificación con Random Forest, Gradient Boosting, XGBoost y LightGBM. |
-| `scripts/fetch_updated_data.py` | Obtiene datos actualizados desde football-data.org y, opcionalmente, RapidAPI. |
-| `scripts/scraper_laliga.py` | Obtiene clasificación desde ESPN/BBC y usa datos manuales como respaldo. |
-| `predict_champion_latest.py` | Muestra clasificación actual y proyecta campeón según puntos por partido. |
-| `update_and_predict.py` | Actualiza datos, calcula clasificación y proyecta el resultado final. |
+Un modelo de resultados de fútbol entrenado solo con estadística previa al partido (sin
+alineaciones, sin lesiones, sin cuotas en tiempo real) tiene un techo real en torno al
+**53-55 %** de accuracy — que es aproximadamente lo que ya aciertan las casas de
+apuestas siguiendo a su favorito. El dashboard muestra la accuracy **junto a tres
+baselines** (siempre gana el local, clase mayoritaria del entrenamiento, favorito del
+mercado de apuestas) precisamente para que un 52 % se lea como "está donde se espera
+que esté un modelo así", no como "está roto". Si alguna vez ves un número por encima del
+90 %, sospecha: probablemente se está midiendo sobre datos que el modelo ya ha visto.
 
 ---
 
-## Flujo de trabajo
-
-```text
-Verificación de datos locales
-        |
-        v
-Descarga automática desde football-data.org (si faltan datos)
-        |
-        v
-Carga y limpieza de datos
-        |
-        v
-Feature engineering
-        |
-        v
-Entrenamiento de modelos
-        |
-        v
-Evaluación e importancia de variables
-        |
-        v
-Proyección de clasificación
-```
-
----
-
-## Modelos implementados
-
-La clase `LaLigaPredictor` permite entrenar distintos modelos de clasificación:
-
-| Modelo | Uso |
-|---|---|
-| Random Forest | Clasificador basado en ensamblado de árboles. |
-| Gradient Boosting | Modelo secuencial de boosting. |
-| XGBoost | Modelo principal usado en el pipeline completo. |
-
-El objetivo del modelo es clasificar el resultado de un partido:
-
-```text
--1 -> Victoria visitante
- 0 -> Empate
- 1 -> Victoria local
-```
-
-Para XGBoost, estas clases se codifican internamente como `0`, `1` y `2`.
-
----
-
-## Características generadas
-
-El módulo de preprocesamiento (`scripts/preprocess.py`) crea características usando **únicamente información disponible antes del partido**, evitando *data leakage*:
-
-### Estadísticas acumuladas por equipo
-- Partidos jugados, victorias, derrotas y empates.
-- Puntos por partido.
-- Goles a favor y en contra por partido.
-
-### Forma reciente
-- Puntos por partido en los últimos 3 y 5 partidos.
-- Rendimiento como local del equipo local.
-- Rendimiento como visitante del equipo visitante.
-
-### Diferencias entre equipos
-- Diferencia de puntos por partido.
-- Diferencia de porcentaje de victorias.
-- Diferencia de goles a favor y en contra.
-- Diferencia de forma reciente.
-- Factor campo (*home advantage*).
-
-### Contexto adicional
-- **Días de descanso**: días transcurridos desde el último partido de cada equipo.
-- **Enfrentamientos directos (H2H)**: resultados históricos entre el local y el visitante.
-
-> **Importante:** no se usan goles, tiros, corners, tarjetas ni ninguna estadística del propio partido para predecir su resultado. Esto garantiza que el modelo pueda usarse para predecir partidos futuros.
-
----
-
-## Datos
-
-El proyecto trabaja con datos en formato CSV dentro de `data/raw/`.
-
-Si ejecutas `run_full_pipeline.py` o `run_pipeline.py`, los datos se descargan **automáticamente** desde `football-data.org` si no hay archivos locales. También puedes añadir manualmente datos históricos.
-
-Archivos esperados por el cargador:
-
-```text
-data/raw/SP1.csv
-data/raw/football_matches.csv
-```
-
-Fuentes de datos soportadas:
-
-- `football-data.org`, sin clave de API (descarga automática).
-- RapidAPI / API-Football, si se configura `RAPIDAPI_KEY`.
-- ESPN o BBC Sport para obtener clasificación actual mediante scraping.
-
-Los CSVs grandes y modelos entrenados no se versionan necesariamente en Git, ya que están ignorados en `.gitignore`.
-
----
-
-## Estructura del proyecto
-
-```text
-LM_LaLiga/
-├── README.md
-├── requirements.txt
-├── run_full_pipeline.py      # Pipeline unificado: datos + modelo + campeón + Monte Carlo
-├── run_pipeline.py           # Pipeline de ML con split temporal
-├── run_temporal_validation.py # Walk-forward validation
-├── run_monte_carlo.py        # Simulaciones Monte Carlo
-├── predict_champion_latest.py
-├── update_and_predict.py
-│
-├── scripts/
-│   ├── data_manager.py       # Verificación y descarga automática de datos
-│   ├── model_evaluation.py   # Validación temporal
-│   ├── season_simulator.py   # Simulación de temporada con ML
-│   ├── load_data.py
-│   ├── preprocess.py         # Feature engineering sin data leakage
-│   ├── fetch_updated_data.py
-│   └── scraper_laliga.py
-│
-├── models/
-│   └── predictor.py
-│
-└── data/
-    ├── raw/
-    └── processed/
-```
-
----
-
-## Instalación
-
-Clonar el repositorio:
+## Arranque rápido
 
 ```bash
-git clone https://github.com/juakincruzz/LM_LaLiga.git
-cd LM_LaLiga
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+
+python -m app.seed                 # crea el esquema y siembra las 5 ligas
+python run_web.py                  # http://127.0.0.1:8000
 ```
 
-Crear y activar un entorno virtual:
+Desde ahí: entra en una liga, pulsa **Actualizar datos** y luego **Entrenar modelo**.
+Ambos se ejecutan en segundo plano y la página se actualiza sola mientras corren.
+
+### Desde la terminal, sin levantar el servidor
+
+`manage.py` llama a los mismos servicios que usa la web — no reimplementa nada:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python manage.py update   --league SP1
+python manage.py train    --league SP1
+python manage.py simulate --league SP1 --sims 500 --seed 42
+python manage.py project  --league SP1
+python manage.py evaluate --league SP1     # última evaluación guardada, sin reentrenar
 ```
 
-En Windows:
+### Tests
 
 ```bash
-venv\Scripts\activate
+pytest                 # suite completa (los lentos, marcados `slow`, se excluyen)
+pytest -m slow         # el test de integración de red real (descarga + entrena)
 ```
 
-Instalar dependencias:
+### Fichajes (opcional)
+
+Requiere el submódulo `transfermarkt-api` corriendo aparte, en el puerto 8001 (el 8000
+lo usa el propio dashboard):
 
 ```bash
-pip install -r requirements.txt
+git submodule update --init
+cd transfermarkt-api && PYTHONPATH=$PWD uvicorn app.main:app --port 8001
 ```
+
+Si no está arrancado, el botón "Analizar fichajes" falla con un mensaje claro; el resto
+del dashboard funciona igual sin él.
 
 ---
 
-## Uso
+## Arquitectura
 
-### Ejecutar el pipeline completo (recomendado)
-
-```bash
-python run_full_pipeline.py
+```
+core/       librería compartida: LeagueState (features/estado/clasificación),
+            carga y normalización de CSV, evaluación, goles Poisson, errores
+app/        dashboard FastAPI — routers → services → core
+models/     LeaguePredictor (XGBoost/RandomForest/GradientBoosting/LightGBM)
+scripts/    orquestación: descarga genérica, simulador de temporada
+manage.py   CLI fino sobre app/services — sin lógica propia
+config/     leagues.yaml: códigos de liga, temporada actual, ascendidos
+tests/      pytest + fixtures de datos reales congeladas (5 temporadas de SP1)
 ```
 
-Este script unificado realiza todo el flujo en un solo comando:
+`core.state.LeagueState` es la única implementación de las 35 features, el estado por
+equipo y la clasificación — tanto el entrenamiento por lotes como la simulación
+partido-a-partido recorren el mismo objeto, así que no hay dos copias que puedan
+desalinearse.
 
-1. Verifica si existen datos locales.
-2. Descarga automáticamente la temporada actual desde football-data.org si faltan datos.
-3. Carga y limpia los datos.
-4. Genera características.
-5. Entrena y compara **Random Forest, Gradient Boosting, XGBoost y LightGBM**.
-6. Selecciona automáticamente el mejor modelo.
-7. Evalúa el mejor modelo usando **validación temporal**.
-8. Calcula la clasificación actual.
-9. Simula los partidos restantes con el modelo de ML para predecir el campeón.
-10. Ejecuta **Monte Carlo** (500 simulaciones) para estimar probabilidades de campeón, Champions y descenso.
-11. Muestra también la proyección lineal clásica como comparación.
-12. Guarda el modelo, la proyección, la simulación y las probabilidades en `data/processed/`.
+El target de resultado es `{-1: visitante, 0: empate, 1: local}` en todo el código;
+`LeaguePredictor` lo codifica a `{0,1,2}` internamente para los cuatro modelos por
+igual. El modelo entrena con 5 temporadas históricas y evalúa sobre la temporada actual
+completa, tocada una sola vez (`core/evaluation.py`).
 
-> **Nota:** ya no es necesario descargar datos manualmente. Si no tienes CSVs locales, el pipeline los descarga automáticamente.
+Cada acción del dashboard (actualizar datos, entrenar, simular, proyectar, analizar
+fichajes) es un job que corre en segundo plano, serializado con un lock — nada permite
+lanzar dos entrenamientos de XGBoost a la vez peleándose por los núcleos. El progreso se
+sondea desde el navegador cada 2 segundos vía HTMX.
 
-### Ejecutar el pipeline de Machine Learning
-
-```bash
-python run_pipeline.py
-```
-
-Este script realiza:
-
-1. Verificación/descarga automática de datos si faltan.
-2. Carga de datos.
-3. Limpieza.
-4. Feature engineering.
-5. **División temporal train/test** (cronológica, no aleatoria).
-6. Entrenamiento con XGBoost.
-7. Evaluación del modelo.
-8. Guardado del modelo entrenado.
-
-### Validación temporal con walk-forward
-
-```bash
-python run_temporal_validation.py
-```
-
-Este script evalúa el modelo de forma más robusta mediante **walk-forward validation**:
-
-- Entrena con una ventana inicial de datos históricos.
-- Predice los siguientes `step` partidos.
-- Avanza la ventana y repite el proceso.
-- Muestra accuracy por fold, accuracy promedio, matriz de confusión global y reporte de clasificación.
-
-Esto evita el data leakage temporal y da una estimación más fiable del rendimiento real del modelo.
-
-### Monte Carlo para probabilidades de campeón
-
-```bash
-python run_monte_carlo.py
-```
-
-Por defecto ejecuta **1000 simulaciones estocásticas** de los partidos restantes y estima:
-
-- Probabilidad de cada equipo de ganar La Liga.
-- Probabilidad de entrar en Champions League (top 4).
-- Probabilidad de descender (últimos 3).
-- Distribución de puntos finales esperados (media, desviación, mínimo, máximo).
-
-También genera un gráfico de barras con las probabilidades de campeón.
-
-Parámetros opcionales:
-
-```bash
-# Cambiar el número de simulaciones
-python run_monte_carlo.py --sims 2000
-
-# Simular desde una fecha específica (por ejemplo, 1 de marzo de 2026)
-python run_monte_carlo.py --start-date 2026-03-01
-```
-
-> **Nota:** si la temporada ya está finalizada, las probabilidades serán 0% o 100% porque no quedan partidos por simular. Usa `--start-date` para analizar escenarios intermedios.
-
-### Obtener clasificación y proyectar campeón
-
-```bash
-python predict_champion_latest.py
-```
-
-Este script intenta obtener la clasificación actual y proyecta los puntos finales de cada equipo según su ritmo de puntuación.
-
-### Actualizar datos y proyectar clasificación
-
-```bash
-python update_and_predict.py
-```
-
-Este script descarga datos actualizados, calcula la clasificación actual y genera una proyección final.
-
-### Configurar RapidAPI de forma opcional
-
-```bash
-export RAPIDAPI_KEY="tu_clave"
-```
-
-En Windows PowerShell:
-
-```powershell
-$env:RAPIDAPI_KEY="tu_clave"
-```
+Documentación más detallada, pensada para quien vaya a tocar el código, en
+[CLAUDE.md](CLAUDE.md).
 
 ---
 
-## Salidas generadas
+## Fuente de datos
 
-El proyecto puede generar:
+[football-data.co.uk](https://www.football-data.co.uk/) — resultados históricos, sin
+necesidad de clave de API. Los códigos de liga (`SP1`, `E0`, `D1`, `I1`, `F1`) son los
+suyos, y viven como string en todo el proyecto — no hay ningún id numérico de liga.
 
-```text
-data/raw/SP1.csv                                                # Datos descargados automáticamente
-data/processed/laliga_processed.csv                             # Dataset limpio y con features
-data/processed/projected_standings.csv                          # Proyección lineal de clasificación
-data/processed/simulated_standings.csv                          # Clasificación simulada con ML
-data/processed/simulated_matches.csv                            # Partidos simulados con probabilidades
-data/processed/monte_carlo_champion_probabilities.csv           # Probabilidades de campeón
-data/processed/monte_carlo_probabilities.png                    # Gráfico de probabilidades de campeón
-models/laliga_predictor.pkl                                     # Mejor modelo entrenado
-```
+## Limitaciones conocidas
 
-Estos archivos pueden no aparecer en el repositorio porque dependen de la ejecución local y están ignorados por Git.
-
----
-
-## Limitaciones
-
-- La predicción de campeón combina simulación con el modelo de ML, Monte Carlo y proyección lineal; la simulación asigna goles simplificados a los resultados predichos.
-- El modelo de resultados de partido alcanza una accuracy realista (~45-55%) porque no utiliza datos del propio partido y se evalúa con validación temporal. Predecir resultados de fútbol es inherentemente difícil.
-- Las probabilidades de Monte Carlo dependen de la calidad del modelo y del número de simulaciones; con más simulaciones se reduce la varianza de las estimaciones.
-- La disponibilidad de datos externos depende de las fuentes usadas y de posibles cambios en sus páginas o APIs.
-- El scraping puede dejar de funcionar si ESPN o BBC modifican la estructura HTML.
-- Los datos de `football-data.org` pueden tener un ligero retraso respecto a la jornada actual.
-
----
-
-## Aprendizajes principales
-
-Este proyecto permite trabajar conceptos prácticos de análisis de datos y Machine Learning:
-
-- Limpieza y normalización de datasets deportivos.
-- Feature engineering aplicado a fútbol sin data leakage.
-- Clasificación multiclase de resultados de partidos.
-- Entrenamiento, comparación y selección de modelos supervisados.
-- Validación temporal y walk-forward validation para series deportivas.
-- Simulación de temporadas y Monte Carlo para estimar probabilidades.
-- Uso de datos externos mediante descarga, API o scraping.
-- Proyección de clasificaciones deportivas.
-- Organización de un pipeline de datos en Python.
-
----
+- El modelo no usa alineaciones, lesiones ni datos en tiempo real — solo estadística
+  acumulada previa al partido. Ver la nota de precisión más arriba.
+- `config/leagues.yaml → next_season.promoted_teams` viene con nombres de relleno
+  (`"Ascendido 1"`, …) que hay que sustituir por los ascendidos reales de cada liga
+  antes de que la proyección de la temporada siguiente tenga sentido.
+- El análisis de fichajes solo tiene alias de nombre de equipo configurados para La
+  Liga; en el resto de ligas el emparejamiento con Transfermarkt puede fallar para
+  equipos con nombres muy distintos entre fuentes (p. ej. "Man United" vs "Manchester
+  United").
 
 ## Autor
 
-**Joaquín Cruz Lorenzo**  
+**Joaquín Cruz Lorenzo**
 GitHub: [@juakincruzz](https://github.com/juakincruzz)
