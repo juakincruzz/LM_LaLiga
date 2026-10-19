@@ -5,6 +5,7 @@ fixtures de aislamiento son `autouse`, así que un test nuevo queda protegido
 aunque su autor no se acuerde de pedirlas.
 """
 import asyncio
+import json
 import shutil
 from pathlib import Path
 from unittest import mock
@@ -120,6 +121,44 @@ def mock_download():
 
     with mock.patch("scripts.data_manager_generic.requests.get", side_effect=responder) as mock_get:
         yield mock_get
+
+
+@pytest.fixture(autouse=True)
+def understat_offline(monkeypatch):
+    """Understat sin red por defecto: `update_league_data` lo descarga, y un
+    test que no pida `mock_understat` no debe salir a internet."""
+    import scripts.understat as understat
+
+    monkeypatch.setattr(understat, "PAUSA", 0)
+    monkeypatch.setattr(
+        understat.requests, "get",
+        mock.MagicMock(side_effect=requests.ConnectionError("sin red en tests")),
+    )
+
+
+@pytest.fixture
+def mock_understat(monkeypatch):
+    """Understat servido desde tests/fixtures/understat: la liga 25/26 recortada
+    a los 6 últimos partidos del Betis y sus alineaciones reales."""
+    import scripts.understat as understat
+
+    carpeta = FIXTURES_DIR / "understat"
+
+    def responder(url, headers=None, timeout=30):
+        if "getLeagueData" in url:
+            fichero = carpeta / f"liga_{url.rstrip('/').split('/')[-1]}.json"
+        else:
+            fichero = carpeta / f"partido_{url.rstrip('/').split('/')[-1]}.json"
+        respuesta = mock.MagicMock()
+        if not fichero.exists():
+            respuesta.raise_for_status.side_effect = requests.HTTPError(f"404 {url}")
+        else:
+            respuesta.json.return_value = json.loads(fichero.read_text())
+        return respuesta
+
+    falso = mock.MagicMock(side_effect=responder)
+    monkeypatch.setattr(understat.requests, "get", falso)
+    return falso
 
 
 @pytest.fixture

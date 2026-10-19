@@ -41,6 +41,41 @@ OPENFOOTBALL = {
     "Villarreal CF": "Villarreal",
 }
 
+# Understat (alineaciones y datos de jugadores) → football-data.co.uk.
+# Verificado contra Understat 2021 a 2026. Mismo trato que OPENFOOTBALL: un
+# ascendido que no esté aquí hace fallar la descarga con su nombre.
+UNDERSTAT = {
+    "Alaves": "Alaves",
+    "Almeria": "Almeria",
+    "Athletic Club": "Ath Bilbao",
+    "Atletico Madrid": "Ath Madrid",
+    "Barcelona": "Barcelona",
+    "Cadiz": "Cadiz",
+    "Celta Vigo": "Celta",
+    "Deportivo La Coruna": "La Coruna",
+    "Elche": "Elche",
+    "Espanyol": "Espanol",
+    "Getafe": "Getafe",
+    "Girona": "Girona",
+    "Granada": "Granada",
+    "Las Palmas": "Las Palmas",
+    "Leganes": "Leganes",
+    "Levante": "Levante",
+    "Malaga": "Malaga",
+    "Mallorca": "Mallorca",
+    "Osasuna": "Osasuna",
+    "Racing Santander": "Santander",
+    "Rayo Vallecano": "Vallecano",
+    "Real Betis": "Betis",
+    "Real Madrid": "Real Madrid",
+    "Real Oviedo": "Oviedo",
+    "Real Sociedad": "Sociedad",
+    "Real Valladolid": "Valladolid",
+    "Sevilla": "Sevilla",
+    "Valencia": "Valencia",
+    "Villarreal": "Villarreal",
+}
+
 # football-data.co.uk → nombre para la interfaz (sin tildes perdidas ni abreviaturas)
 NOMBRES_VISIBLES = {
     "Alaves": "Alavés",
@@ -140,6 +175,16 @@ def desde_openfootball(nombre: str) -> str:
         raise EquipoDesconocidoError(
             f"Equipo del calendario sin traducir: «{nombre}». "
             f"Añádelo a OPENFOOTBALL en core/equipos.py."
+        ) from None
+
+
+def desde_understat(nombre: str) -> str:
+    try:
+        return UNDERSTAT[nombre]
+    except KeyError:
+        raise EquipoDesconocidoError(
+            f"Equipo de Understat sin traducir: «{nombre}». "
+            f"Añádelo a UNDERSTAT en core/equipos.py."
         ) from None
 
 
