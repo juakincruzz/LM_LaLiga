@@ -133,6 +133,9 @@ async def update_league_data(
             resumen["aviso_jugadores"] = (
                 f"faltan {understat['faltan']} alineaciones; se completarán en la próxima actualización"
             )
-    except (requests.RequestException, EquipoDesconocidoError, KeyError, ValueError) as e:
+    except (requests.RequestException, EquipoDesconocidoError, OSError, KeyError, ValueError,
+            TypeError, AttributeError) as e:
+        # Understat no tiene API oficial: si cambia su formato, los resultados
+        # de football-data ya están dentro y la actualización no debe fallar
         resumen["aviso_jugadores"] = f"sin datos de jugadores ({type(e).__name__}: {e})"
     return resumen

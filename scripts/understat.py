@@ -13,6 +13,7 @@ web. La caché vive en data/raw/{liga}/understat/:
 La ficha de equipo solo lee esta caché; descargar es cosa de «Actualizar datos».
 """
 import json
+import os
 import time
 from pathlib import Path
 
@@ -26,6 +27,7 @@ URL_LIGA = "https://understat.com/getLeagueData/La_liga/{anio}"
 URL_PARTIDO = "https://understat.com/getMatchData/{id}"
 CABECERAS = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest"}
 PAUSA = 0.4  # segundos entre peticiones, por cortesía con Understat
+MAX_FALLOS_SEGUIDOS = 5  # si Understat bloquea o no responde, no insistir con los ~380 partidos
 
 
 def understat_dir(league_code: str) -> Path:
@@ -44,12 +46,29 @@ def _get(url: str) -> dict:
     return respuesta.json()
 
 
+def _escribir(ruta: Path, datos: dict) -> None:
+    """Escritura atómica: un corte a mitad (parar el servidor en la primera
+    descarga) no deja un JSON truncado que luego se tomaría por válido."""
+    temporal = ruta.with_suffix(".tmp")
+    temporal.write_text(json.dumps(datos, ensure_ascii=False))
+    os.replace(temporal, ruta)
+
+
+def _leer_partido(ruta: Path) -> dict | None:
+    """Las alineaciones de un partido, o None si no hay fichero o está dañado."""
+    try:
+        return json.loads(ruta.read_text())["rosters"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def download_understat(league_code: str, season: str, on_progress=None) -> dict:
     """Descarga los partidos de la temporada y las alineaciones que falten.
 
     Un fallo al pedir la liga se propaga (no hay nada que hacer sin ella); un
     fallo en un partido concreto solo lo deja en `faltan`, y la siguiente
-    descarga lo vuelve a intentar.
+    descarga lo vuelve a intentar. Tras `MAX_FALLOS_SEGUIDOS` fallos seguidos
+    se abandona: los que queden también van a `faltan`.
     """
     carpeta = understat_dir(league_code)
     (carpeta / "partidos").mkdir(parents=True, exist_ok=True)
@@ -59,28 +78,30 @@ def download_understat(league_code: str, season: str, on_progress=None) -> dict:
     for partido in liga["dates"]:
         desde_understat(partido["h"]["title"])
         desde_understat(partido["a"]["title"])
-    (carpeta / f"liga_{_anio(season)}.json").write_text(
-        json.dumps({"dates": liga["dates"]}, ensure_ascii=False)
-    )
+    _escribir(carpeta / f"liga_{_anio(season)}.json", {"dates": liga["dates"]})
+
+    def falta(match_id) -> bool:
+        return _leer_partido(carpeta / "partidos" / f"{match_id}.json") is None
 
     jugados = [p["id"] for p in liga["dates"] if p["isResult"]]
-    pendientes = [i for i in jugados if not (carpeta / "partidos" / f"{i}.json").exists()]
-    nuevos = 0
+    pendientes = [i for i in jugados if falta(i)]
+    nuevos = fallos_seguidos = 0
     for n, match_id in enumerate(pendientes, start=1):
-        if nuevos:
+        if n > 1:
             time.sleep(PAUSA)
         try:
             datos = _get(URL_PARTIDO.format(id=match_id))
-            (carpeta / "partidos" / f"{match_id}.json").write_text(
-                json.dumps({"rosters": datos["rosters"]}, ensure_ascii=False)
-            )
+            _escribir(carpeta / "partidos" / f"{match_id}.json", {"rosters": datos["rosters"]})
             nuevos += 1
-        except (requests.RequestException, OSError, ValueError, KeyError):
-            pass
+            fallos_seguidos = 0
+        except (requests.RequestException, OSError, ValueError, KeyError, TypeError):
+            fallos_seguidos += 1
         if on_progress:
             on_progress(n, len(pendientes))
+        if fallos_seguidos >= MAX_FALLOS_SEGUIDOS:
+            break
 
-    faltan = sum(1 for i in jugados if not (carpeta / "partidos" / f"{i}.json").exists())
+    faltan = sum(1 for i in jugados if falta(i))
     return {"partidos": len(jugados), "nuevos": nuevos, "faltan": faltan}
 
 
@@ -94,11 +115,10 @@ def load_lineups(league_code: str, season: str) -> pd.DataFrame:
 
     filas = []
     for partido in json.loads(fichero_liga.read_text())["dates"]:
-        fichero = carpeta / "partidos" / f"{partido['id']}.json"
-        if not partido["isResult"] or not fichero.exists():
+        rosters = _leer_partido(carpeta / "partidos" / f"{partido['id']}.json")
+        if not partido["isResult"] or rosters is None:
             continue
         equipos = {"h": desde_understat(partido["h"]["title"]), "a": desde_understat(partido["a"]["title"])}
-        rosters = json.loads(fichero.read_text())["rosters"]
         for lado, rival in (("h", "a"), ("a", "h")):
             for j in rosters[lado].values():
                 filas.append({

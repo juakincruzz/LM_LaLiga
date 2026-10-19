@@ -68,3 +68,29 @@ def test_equipo_desconocido(mock_understat, monkeypatch):
     monkeypatch.delitem(core.equipos.UNDERSTAT, "Real Betis")
     with pytest.raises(EquipoDesconocidoError):
         download_understat("SP1", "2526")
+
+
+def test_cache_corrupta_se_ignora_y_se_vuelve_a_descargar(mock_understat, data_root):
+    download_understat("SP1", "2526")
+    roto = data_root / "SP1" / "understat" / "partidos" / "29504.json"
+    roto.write_text('{"rosters": {"h": {"1": {"id"')  # escritura cortada a medias
+    assert load_lineups("SP1", "2526")["match_id"].nunique() == 5
+    assert download_understat("SP1", "2526")["nuevos"] == 1
+    assert load_lineups("SP1", "2526")["match_id"].nunique() == 6
+
+
+def test_pausa_siempre_y_corta_tras_fallos_seguidos(mock_understat, monkeypatch):
+    import scripts.understat as understat
+
+    original = mock_understat.side_effect
+    mock_understat.side_effect = lambda url: original(url) if "getLeagueData" in url else (_ for _ in ()).throw(
+        ConnectionError("bloqueado")
+    )
+    pausas = []
+    monkeypatch.setattr(understat.time, "sleep", pausas.append)
+    monkeypatch.setattr(understat, "MAX_FALLOS_SEGUIDOS", 3)
+
+    r = download_understat("SP1", "2526")
+    assert r == {"partidos": 6, "nuevos": 0, "faltan": 6}
+    assert mock_understat.call_count == 1 + 3  # la liga y 3 partidos; luego abandona
+    assert len(pausas) == 2  # una pausa entre cada par de peticiones de partidos

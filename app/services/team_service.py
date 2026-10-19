@@ -402,5 +402,8 @@ async def ficha(db, league_code: str, equipo: str) -> dict | None:
         datos["once"] = posible_once(lineups, equipo)
         datos["mejores"] = mejores_jugadores(lineups, equipo)
         if not datos["once"]["jugadores"]:
+            # Pretemporada (o equipo sin alineaciones): mensaje en las dos
+            # ventanas de jugadores, no seis columnas vacías
+            datos["once"] = datos["mejores"] = None
             datos["aviso_jugadores"] = "Aún no hay alineaciones de este equipo esta temporada."
     return datos

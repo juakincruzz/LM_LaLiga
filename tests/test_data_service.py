@@ -86,3 +86,14 @@ async def test_job_de_actualizar_menciona_el_aviso_de_jugadores(client, temp_db,
             await asyncio.sleep(0.05)
     assert fila["status"] == "done"
     assert "sin datos de jugadores" in fila["message"]
+
+
+async def test_actualizar_sobrevive_a_un_cambio_de_formato_de_understat(temp_db, mock_download, monkeypatch):
+    import scripts.understat as understat
+
+    monkeypatch.setattr(understat, "_get", lambda url: {"dates": None})
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        resumen = await update_league_data(db, "SP1")
+        assert await _contar(db, "matches") == 380
+    assert resumen["aviso_jugadores"].startswith("sin datos de jugadores (TypeError")

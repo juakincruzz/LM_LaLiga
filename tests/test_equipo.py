@@ -94,3 +94,9 @@ async def test_enlaces_a_la_ficha(client, temp_db):
     texto = (await client.get("/")).text
     assert 'href="/equipo/Ath%20Madrid"' in texto
     assert 'href="/equipo/Ascendido%201"' not in texto
+
+
+async def test_equipo_sin_alineaciones_muestra_mensaje_en_jugadores(client, poblada_con_jugadores):
+    # Getafe no sale en las alineaciones de la fixture: como un equipo en pretemporada
+    texto = (await client.get("/equipo/Getafe")).text
+    assert texto.count("Aún no hay alineaciones de este equipo esta temporada.") == 2
