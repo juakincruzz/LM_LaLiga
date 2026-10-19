@@ -31,6 +31,10 @@ COLUMN_MAP = {
     "AY": "Away_Yellows",
     "HR": "Home_Reds",
     "AR": "Away_Reds",
+    # Goles esperados: football-data los trae desde 26/27. Solo para la ficha
+    # de equipo (fuertes/débiles); no son features del modelo.
+    "HxG": "Home_xG",
+    "AxG": "Away_xG",
 }
 
 # Cuotas de Bet365, usadas como baseline de referencia en la evaluación.

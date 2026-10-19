@@ -4,7 +4,6 @@ Escenario: la 25/26 de la fixture cortada a mitad (190 jugados) más un
 calendario con los 380 partidos, que es la situación real a mitad de
 temporada: football-data solo trae los jugados, el calendario los pendientes.
 """
-import csv
 from pathlib import Path
 
 import aiosqlite
@@ -17,35 +16,9 @@ from core.features import build_training_matrix
 from core.goals import scoreline_distribution, top_scorelines
 from models.predictor import LeaguePredictor
 
+from tests.conftest import JUGADOS
+
 FIXTURES = Path(__file__).parent / "fixtures"
-JUGADOS = 190
-
-
-@pytest.fixture
-def media_temporada(data_root, monkeypatch):
-    """Escribe en `data_root` la 25/26 a medias y su calendario completo, y
-    neutraliza las descargas de `update_league_data` (que si no, traerían la
-    temporada entera de la fixture)."""
-    with open(FIXTURES / "SP1_2526.csv", encoding="utf-8-sig") as f:
-        filas = list(csv.DictReader(f))
-
-    destino = data_root / "SP1"
-    with open(destino / "2526.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(filas[0].keys()))
-        writer.writeheader()
-        writer.writerows(filas[:JUGADOS])
-
-    with open(destino / "2526_calendario.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Date", "HomeTeam", "AwayTeam", "Matchday"])
-        for i, fila in enumerate(filas):
-            writer.writerow([fila["Date"], fila["HomeTeam"], fila["AwayTeam"], i // 10 + 1])
-
-    import app.services.data_service as ds
-
-    monkeypatch.setattr(ds, "download_league_data", lambda league, season: destino / f"{season}.csv")
-    monkeypatch.setattr(ds, "download_calendar", lambda league, season: destino / f"{season}_calendario.csv")
-    return destino
 
 
 @pytest.fixture

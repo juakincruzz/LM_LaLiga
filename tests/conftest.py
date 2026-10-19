@@ -5,6 +5,7 @@ fixtures de aislamiento son `autouse`, así que un test nuevo queda protegido
 aunque su autor no se acuerde de pedirlas.
 """
 import asyncio
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 import requests
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+JUGADOS = 190  # partidos jugados en `media_temporada`
 
 
 @pytest.fixture(autouse=True)
@@ -167,3 +169,32 @@ async def client():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+def media_temporada(data_root, monkeypatch):
+    """La 25/26 a medias (190 jugados) con su calendario completo de 380.
+
+    Escribe en `data_root` la 25/26 a medias y su calendario completo, y
+    neutraliza las descargas de `update_league_data` (que si no, traerían la
+    temporada entera de la fixture)."""
+    with open(FIXTURES_DIR / "SP1_2526.csv", encoding="utf-8-sig") as f:
+        filas = list(csv.DictReader(f))
+
+    destino = data_root / "SP1"
+    with open(destino / "2526.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(filas[0].keys()))
+        writer.writeheader()
+        writer.writerows(filas[:JUGADOS])
+
+    with open(destino / "2526_calendario.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Date", "HomeTeam", "AwayTeam", "Matchday"])
+        for i, fila in enumerate(filas):
+            writer.writerow([fila["Date"], fila["HomeTeam"], fila["AwayTeam"], i // 10 + 1])
+
+    import app.services.data_service as ds
+
+    monkeypatch.setattr(ds, "download_league_data", lambda league, season: destino / f"{season}.csv")
+    monkeypatch.setattr(ds, "download_calendar", lambda league, season: destino / f"{season}_calendario.csv")
+    return destino
