@@ -239,3 +239,11 @@ def test_la_tabla_simulada_es_coherente_con_sus_probabilidades(modelo):
     assert puntos == sorted(puntos, reverse=True)
     assert all(t["champion_prob"] is not None and t["relegation_prob"] is not None for t in tabla)
     assert sum(t["relegation_prob"] for t in tabla) == pytest.approx(3.0)
+
+
+async def test_predicciones_llevan_escudos(client, modelo):
+    jornada = (await client.get("/prediccion/jornada")).text
+    assert jornada.count('class="escudo"') == 20  # 10 partidos × 2 equipos
+
+    duelo = (await client.get("/prediccion/partido", params={"local": "Barcelona", "visitante": "Betis"})).text
+    assert duelo.count('width="32"') == 2

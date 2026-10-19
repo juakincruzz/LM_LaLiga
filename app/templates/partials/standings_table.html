@@ -21,7 +21,7 @@
         {% set dg = team.gf - team.ga %}
         <tr class="{{ 'zona-' ~ zona if zona }}">
             <td class="pos">{{ loop.index }}</td>
-            <th scope="row">{{ team.name|equipo }}</th>
+            <th scope="row">{{ escudo(team.name, 16) }}{{ team.name|equipo }}</th>
             <td class="pts">{{ team.points }}</td>
             <td>{{ team.gf }}</td>
             <td>{{ team.ga }}</td>

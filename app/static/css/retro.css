@@ -1158,3 +1158,31 @@ abbr[title] {
         transition: none;
     }
 }
+
+/* Escudos pixelados (app/escudos.py): SVG inline junto al nombre del equipo */
+.escudo {
+    flex: none;
+    vertical-align: middle;
+}
+
+.tabla tbody th .escudo,
+.partido__visitante .escudo {
+    margin-right: 6px;
+}
+
+.partido__local .escudo {
+    margin-left: 6px;
+}
+
+.duelo__equipo .escudo {
+    display: block;
+    margin: 0 auto 6px;
+}
+
+.duelo__equipo:first-child .escudo {
+    margin-right: 0;
+}
+
+.duelo__equipo:nth-child(3) .escudo {
+    margin-left: 0;
+}
