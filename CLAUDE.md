@@ -59,6 +59,11 @@ touch real state — keep it that way when adding tests:
   fixtures use the `media_temporada` fixture in [tests/test_prediccion.py](tests/test_prediccion.py)
   (25/26 cut to 190 played + a 380-match calendar).
 
+- `understat_offline` (autouse) makes `scripts.understat._get` raise `ConnectionError`, so
+  `update_league_data` never reaches Understat in a test; `mock_understat` serves
+  `tests/fixtures/understat/` instead (25/26 cut to Betis's last 6 matches, real lineups). It patches
+  `_get`, not `requests.get`: `requests` is one shared module, and patching it clobbered `mock_download`.
+
 `tests/test_integration.py` is marked `slow`: it hits the network and trains a real model (~1–3 min).
 
 ## Architecture
@@ -163,6 +168,15 @@ season) and fills `Matchday`. Ingestion deletes and re-inserts `scheduled` rows 
 rescheduled match doesn't leave a ghost row. If the calendar can't be downloaded, the update still
 succeeds and says so in its message.
 
+**Third source: Understat** (player data and lineups, for the team page).
+[scripts/understat.py](scripts/understat.py) is the only module that knows it (unofficial JSON
+endpoints, no API key): `download_understat` runs inside `update_league_data` (in a thread, with
+progress) and caches `data/raw/SP1/understat/liga_{year}.json` plus one `partidos/{id}.json` per
+played match, downloaded once; `load_lineups` reads that cache into one row per player and match.
+Team names go through `UNDERSTAT` in [core/equipos.py](core/equipos.py) — add a promoted club there
+too. If Understat fails, the update still succeeds with an `aviso_jugadores`. Swapping the source
+(e.g. a paid API before publishing) means reimplementing those two functions only.
+
 The home page (`/`, [app/routers/liga.py](app/routers/liga.py); `/league/SP1` 301-redirects there) does
 **not** compute standings; it renders the most recent `simulations` row **of the current season**
 (`WHERE league_code = ? AND season = ?` — `simulations.season` is the season the run started from;
@@ -182,6 +196,21 @@ pick). The (state, predictor) context is cached keyed on the mtimes of the `.pkl
 the calendar. "Next matchday" = first matchday with pending matches whose **median** date hasn't
 passed — using the max date let one postponed match turn an old matchday into "next". Expected
 errors come back as the partial with a message and status 200, because HTMX doesn't swap 4xx/5xx.
+
+**Team page** (`/equipo/{nombre}`, football-data name URL-encoded, [app/routers/equipo.py](app/routers/equipo.py)
+→ [app/services/team_service.py](app/services/team_service.py)): header (position from `LeagueState`),
+last-5 form (only the V/E/D chips — no points-per-game line, the user read it as betting odds),
+strengths/weaknesses (15 per-match measures vs the season's teams, z-scored; xG ones only when the
+CSV has `HxG`/`AxG`, i.e. from 26/27), likely XI and top players (from Understat lineups, summed per
+team so mid-season transfers only count for their current club), and honours from
+[config/palmares.yaml](config/palmares.yaml) — hand-edited, RFEF/UEFA-recognised titles only, rule at
+the top of the file. It **never calls Understat**: it reads the cache. No odds anywhere on it.
+
+Team **crests** are our own design, not the clubs' trademarked ones (the project may be published):
+`ESCUDOS` in [core/equipos.py](core/equipos.py) (pattern + EGA colours + initials, add a promoted club
+there) drawn by [app/escudos.py](app/escudos.py) as inline 16×16 SVG — inline so the initials can use
+the page's pixel font. Unknown teams get a grey crest with initials. Jinja globals: `escudo(nombre,
+tam)`, `tiene_ficha(nombre)` (false only for the "Ascendido N" placeholders).
 
 ### ML core
 

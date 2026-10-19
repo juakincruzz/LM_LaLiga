@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% set nombre = f.equipo|equipo %}
+{% set c = f.cabecera %}
+
+{% block title %}{{ nombre }} · LM LaLiga{% endblock %}
+
+{# Valor de una medida de fuertes/débiles: media por partido o porcentaje #}
+{% macro valor(v, formato) -%}
+{% if formato == "0%" %}{{ "%.0f"|format(v * 100) }} %{% elif formato == "0.00" %}{{ "%.2f"|format(v) }}{% else %}{{ "%.1f"|format(v) }}{% endif %}
+{%- endmacro %}
+
+{# Trofeo pixelado de 8×8 #}
+{% macro trofeo() -%}
+<svg class="trofeo" viewBox="0 0 8 8" width="24" height="24" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+    <path fill="#ffff55" d="M1 0h6v1h1v2H7v1H6v1H5v1h1v1h1v1H1V7h1V6h1V5H2V4H1V3H0V1h1z"/>
+    <path fill="#0000aa" d="M1 1v2h0.5V1zM6.5 1v2H7V1z"/>
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<script>
+    // Como en la página de error: «Esc» vuelve a la portada
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") location.href = "/"; });
+</script>
+
+<section class="ventana ficha__cab" aria-labelledby="t-equipo">
+    <h1 id="t-equipo" class="ventana__titulo">{{ nombre }}</h1>
+    {{ escudo(f.equipo, 80, decorativo=False) }}
+    <div>
+        <p class="ficha__nombre">{{ nombre }}</p>
+        {% if c.jugados %}
+        <p class="ficha__dato">
+            <b>{{ c.posicion }}º</b> · <b>{{ c.puntos }}</b> pts · {{ c.v }}V {{ c.e }}E {{ c.d }}D ·
+            GF <b>{{ c.gf }}</b> GC <b>{{ c.gc }}</b>
+        </p>
+        {% endif %}
+        {% if c.proximo %}
+        {% set p = c.proximo %}
+        <p class="ficha__dato">
+            Próximo: <b>{{ p.rival|equipo }}</b> ({{ "en casa" if p.local else "fuera" }})
+            {% if p.jornada %}· jornada {{ p.jornada }}{% endif %} · {{ p.fecha[8:10] }}/{{ p.fecha[5:7] }}
+        </p>
+        {% endif %}
+        {% if not f.es_actual %}
+        <p class="nota">Sin partidos de la temporada {{ temporada_actual }} todavía.</p>
+        {% endif %}
+    </div>
+</section>
+
+<div class="ficha">
+    <div class="columna">
+        <section class="ventana" aria-labelledby="t-forma">
+            <h2 id="t-forma" class="ventana__titulo">Estado de forma</h2>
+            {% if f.forma %}
+            <ol class="ficha__forma">
+                {% for p in f.forma %}
+                <li class="forma--{{ p.letra }}" title="{{ p.fecha }}">
+                    <b>{{ p.letra }}</b><span>{{ p.marcador }}</span>
+                    <span class="ficha__rival">{{ p.rival|equipo }}{{ "" if p.local else " (F)" }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            <p class="nota">Últimos {{ f.forma|length }} partidos, el más reciente a la derecha. (F) = fuera.</p>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Aún no ha jugado esta temporada.</p>
+            {% endif %}
+        </section>
+
+        <section class="ventana" aria-labelledby="t-fd">
+            <h2 id="t-fd" class="ventana__titulo">Puntos fuertes y débiles</h2>
+            {% set fd = f.fuertes_debiles %}
+            {% if fd.fuertes or fd.debiles %}
+            <div class="ficha__fd">
+                {% for lado, titulo, clase in [(fd.fuertes, "▲ Fuerte", "fuerte"), (fd.debiles, "▼ Débil", "debil")] %}
+                <div class="ficha__fd-{{ clase }}">
+                    <h3>{{ titulo }}</h3>
+                    {% for m in lado %}
+                    <div class="medida">
+                        {{ m.texto }}
+                        <span class="medida__barra" aria-hidden="true">
+                            <i style="width: {{ '%.0f'|format(m.pct) }}%"></i>
+                            <span class="medida__media" style="left: {{ '%.0f'|format(m.pct_media) }}%"></span>
+                        </span>
+                        <span class="nota">{{ valor(m.valor, m.formato) }} (liga {{ valor(m.media, m.formato) }})</span>
+                    </div>
+                    {% else %}
+                    <p class="nota">Nada destacable.</p>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="nota">Comparado con los equipos de la temporada, por partido. La raya amarilla es la media de la liga.</p>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Aún no ha jugado esta temporada.</p>
+            {% endif %}
+        </section>
+
+        <section class="ventana" aria-labelledby="t-mejores">
+            <h2 id="t-mejores" class="ventana__titulo">Mejores jugadores</h2>
+            {% if f.mejores %}
+            <div class="ficha__ranking">
+                {% for categoria, lista in f.mejores.items() %}
+                <div>
+                    <h3>{{ categoria }}</h3>
+                    {% if lista %}
+                    <ol>
+                        {% for jugador, v in lista %}
+                        <li><span>{{ jugador }}</span><span class="valor">{{ v }}</span></li>
+                        {% endfor %}
+                    </ol>
+                    {% else %}
+                    <p class="nota">—</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="nota">Temporada {{ temporada_actual }}, solo lo jugado con este equipo. Datos: Understat.</p>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">!</span>{{ f.aviso_jugadores }}</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="columna">
+        <section class="ventana" aria-labelledby="t-once">
+            {% if c.proximo %}
+            <h2 id="t-once" class="ventana__titulo">Posible 11 · contra {{ c.proximo.rival|equipo }}</h2>
+            {% else %}
+            <h2 id="t-once" class="ventana__titulo">11 más habitual</h2>
+            {% endif %}
+            {% if f.once and f.once.jugadores %}
+            <div class="campo" role="img" aria-label="Posible once titular de {{ nombre }}">
+                {% for j in f.once.jugadores %}
+                <div class="campo__jugador" style="left: {{ '%.1f'|format(j.x) }}%; top: {{ '%.1f'|format(j.y) }}%">
+                    {% set c1 = ega[colores[0]] %}{% set c2 = ega[colores[1]] if colores|length > 1 else c1 %}
+                    <span class="camiseta{{ ' camiseta--portero' if j.posicion == 'GK' }}"
+                          style="--c1: {{ c1 }}; --c2: {{ c2 }}"></span>
+                    <span class="campo__nombre">{% if j.aviso_amarillas or j.expulsado %}<b class="alerta">⚠ </b>{% endif %}<span title="{{ j.nombre }}">{{ j.nombre.split()[-1] }}</span> ({{ j.titularidades }})</span>
+                </div>
+                {% endfor %}
+            </div>
+            <ul class="campo__lista sr-only">
+                {% for j in f.once.jugadores %}<li>{{ j.nombre }}, {{ j.posicion }}</li>{% endfor %}
+            </ul>
+            <p class="nota">Estimado con los titulares de los últimos {{ f.once.partidos }} partidos. No incluye lesionados.</p>
+            <p class="nota">Entre paréntesis, partidos de titular. <b class="alerta">⚠</b> = a una amarilla de la sanción, o expulsado en el último partido.</p>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">!</span>{{ f.aviso_jugadores }}</p>
+            {% endif %}
+        </section>
+
+        <section class="ventana" aria-labelledby="t-palmares">
+            <h2 id="t-palmares" class="ventana__titulo">Palmarés</h2>
+            {% if f.palmares is none %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Palmarés no disponible.</p>
+            {% elif not f.palmares %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">·</span>Sin títulos oficiales todavía.</p>
+            {% else %}
+            <ul class="palmares">
+                {% for t in f.palmares %}
+                <li>
+                    {{ trofeo() }}
+                    <span class="palmares__comp">{{ t.competicion }}</span>
+                    <span class="palmares__num">×{{ t.titulos }}</span>
+                    <span class="nota">último {{ t.ultimo }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+<p><a class="boton boton--enlace" href="/"><span class="boton__tecla" aria-hidden="true">Esc</span> Volver a la portada</a></p>
+{% endblock %}

@@ -7,6 +7,7 @@ La clasificación sale de `LeagueState`, como en el resto del proyecto. Las
 medidas de fuertes/débiles son estadística descriptiva para mostrar, no
 features del modelo.
 """
+import asyncio
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -15,8 +16,11 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from core.dataset import played_only
+from app.config import get_current_season
+from app.services.season_state import get_season_state
+from core.dataset import load_season, played_only
 from core.features import build_state
+from scripts.understat import load_lineups
 
 LETRAS = {1: "V", 0: "E", -1: "D"}
 
@@ -115,7 +119,7 @@ class Medida:
     fuerte: str
     debil: str
     menos_es_mejor: bool
-    formato: str  # "0.0" (media por partido) o "0%" (proporción)
+    formato: str  # "0.0"/"0.00" (media por partido) o "0%" (proporción)
     calcular: object  # (partidos del equipo) -> float
 
 
@@ -145,7 +149,7 @@ MEDIDAS = [
     Medida("tarjetas", "Juego limpio", "Muchas tarjetas", True, "0.0", lambda g: g["tarjetas"].mean()),
     Medida("xg_favor", "Genera mucho peligro", "Genera poco peligro", False, "0.0", lambda g: g["xg"].mean()),
     Medida("xg_contra", "Concede poco", "Concede mucho peligro", True, "0.0", lambda g: g["xga"].mean()),
-    Medida("goles_menos_xg", "Marca más de lo que genera", "Marca menos de lo que genera", False, "0.0",
+    Medida("goles_menos_xg", "Marca más de lo que genera", "Marca menos de lo que genera", False, "0.00",
            lambda g: (g["gf"] - g["xg"]).mean()),
 ]
 
@@ -322,3 +326,81 @@ def palmares(equipo: str) -> list[dict] | None:
         for clave, etiqueta in _PALMARES["competiciones"].items()
         if titulos.get(clave, {}).get("titulos")
     ]
+
+
+# --- La ficha completa ---------------------------------------------------------
+
+
+async def _equipos_de(db, league_code: str, season: str) -> set[str]:
+    cursor = await db.execute(
+        """
+        SELECT DISTINCT t.name
+          FROM matches m
+          JOIN teams t ON t.id IN (m.home_team_id, m.away_team_id)
+         WHERE m.league_code = ? AND m.season = ?
+        """,
+        (league_code, season),
+    )
+    return {fila[0] for fila in await cursor.fetchall()}
+
+
+async def _temporada_con_datos(db, league_code: str) -> str | None:
+    """La actual si tiene partidos; si no (SIN_DATOS), la más reciente que tenga."""
+    actual = get_current_season()
+    cursor = await db.execute(
+        "SELECT season FROM matches WHERE league_code = ? AND season IS NOT NULL "
+        "GROUP BY season ORDER BY season = ? DESC, MAX(date) DESC LIMIT 1",
+        (league_code, actual),
+    )
+    fila = await cursor.fetchone()
+    return fila[0] if fila else None
+
+
+def _cargar(league_code: str, season: str):
+    """Lecturas de disco (pandas/JSON), fuera del event loop."""
+    try:
+        df = load_season(league_code, season, download=False)
+    except FileNotFoundError:
+        df = None
+    try:
+        lineups = load_lineups(league_code, season)
+    except FileNotFoundError:
+        lineups = None
+    return df, lineups
+
+
+async def ficha(db, league_code: str, equipo: str) -> dict | None:
+    """Todo lo que pinta /equipo/{nombre}; `None` si el equipo no juega."""
+    season = await _temporada_con_datos(db, league_code)
+    if season is None or equipo not in await _equipos_de(db, league_code, season):
+        return None
+
+    estado = await get_season_state(db, league_code)
+    df, lineups = await asyncio.to_thread(_cargar, league_code, season)
+    es_actual = season == get_current_season()
+    hay_partidos = df is not None and es_actual and df["Result"].notna().any()
+
+    datos = {
+        "equipo": equipo,
+        "season": season,
+        "estado": estado,
+        "es_actual": es_actual,
+        "hay_partidos": bool(hay_partidos),
+        "cabecera": cabecera(df, equipo, date.today()) if df is not None and es_actual else cabecera(
+            pd.DataFrame(), equipo, date.today()
+        ),
+        "forma": forma(df, equipo) if hay_partidos else [],
+        "fuertes_debiles": fuertes_debiles(df, equipo) if hay_partidos else {"fuertes": [], "debiles": []},
+        "once": None,
+        "mejores": None,
+        "palmares": palmares(equipo),
+        "aviso_jugadores": None,
+    }
+    if lineups is None or not es_actual:
+        datos["aviso_jugadores"] = "Datos de jugadores no disponibles: pulsa ACTUALIZAR"
+    else:
+        datos["once"] = posible_once(lineups, equipo)
+        datos["mejores"] = mejores_jugadores(lineups, equipo)
+        if not datos["once"]["jugadores"]:
+            datos["aviso_jugadores"] = "Aún no hay alineaciones de este equipo esta temporada."
+    return datos

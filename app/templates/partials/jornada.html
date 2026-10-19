@@ -24,13 +24,13 @@
     {% set pr = p.prediccion %}
     <li class="partido">
         <span class="partido__fecha">{{ p.fecha[8:10] }}/{{ p.fecha[5:7] }}</span>
-        <span class="partido__local{{ ' favorito' if pr and pr.favorito == '1' }}">{{ p.local|equipo }}{{ escudo(p.local, 16) }}</span>
+        <span class="partido__local{{ ' favorito' if pr and pr.favorito == '1' }}"><a class="enlace-equipo" href="/equipo/{{ p.local|urlencode }}">{{ p.local|equipo }}{{ escudo(p.local, 16) }}</a></span>
         {% if p.resultado %}
         <span class="partido__marcador partido__marcador--real" title="Resultado real">{{ p.resultado }}</span>
         {% else %}
         <span class="partido__marcador" title="Marcador más probable según el modelo">{{ pr.marcadores[0].local }}-{{ pr.marcadores[0].visitante }}</span>
         {% endif %}
-        <span class="partido__visitante{{ ' favorito' if pr and pr.favorito == '2' }}">{{ escudo(p.visitante, 16) }}{{ p.visitante|equipo }}</span>
+        <span class="partido__visitante{{ ' favorito' if pr and pr.favorito == '2' }}"><a class="enlace-equipo" href="/equipo/{{ p.visitante|urlencode }}">{{ escudo(p.visitante, 16) }}{{ p.visitante|equipo }}</a></span>
         {% if pr %}
         <div class="tri" role="img"
              aria-label="Local {{ '%.0f'|format(pr.p1 * 100) }} %, empate {{ '%.0f'|format(pr.px * 100) }} %, visitante {{ '%.0f'|format(pr.p2 * 100) }} %">

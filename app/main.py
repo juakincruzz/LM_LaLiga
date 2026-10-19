@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import jobs, liga, prediccion
+from app.routers import equipo, jobs, liga, prediccion
 from app.templating import templates
 from core.errors import UnknownLeagueError
 
@@ -22,6 +22,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(liga.router)
 app.include_router(jobs.router)
 app.include_router(prediccion.router)
+app.include_router(equipo.router)
 
 
 @app.exception_handler(UnknownLeagueError)

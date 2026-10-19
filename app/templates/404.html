@@ -9,9 +9,9 @@
 </script>
 <section class="ventana ventana--error" aria-labelledby="t-error">
     <h2 id="t-error" class="ventana__titulo">Error 404</h2>
-    <p class="error__codigo">Liga no encontrada</p>
+    <p class="error__codigo">{{ titulo or "Liga no encontrada" }}</p>
     <p>{{ mensaje }}</p>
-    <p class="nota">Este proyecto solo cubre {{ liga.name }}.</p>
+    {% if not titulo %}<p class="nota">Este proyecto solo cubre {{ liga.name }}.</p>{% endif %}
     <p><a class="boton boton--enlace" href="/"><span class="boton__tecla" aria-hidden="true">Esc</span> Volver a la portada</a></p>
 </section>
 {% endblock %}

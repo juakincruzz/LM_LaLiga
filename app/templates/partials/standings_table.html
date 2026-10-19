@@ -21,7 +21,7 @@
         {% set dg = team.gf - team.ga %}
         <tr class="{{ 'zona-' ~ zona if zona }}">
             <td class="pos">{{ loop.index }}</td>
-            <th scope="row">{{ escudo(team.name, 16) }}{{ team.name|equipo }}</th>
+            <th scope="row">{% if tiene_ficha(team.name) %}<a class="enlace-equipo" href="/equipo/{{ team.name|urlencode }}">{{ escudo(team.name, 16) }}{{ team.name|equipo }}</a>{% else %}{{ escudo(team.name, 16) }}{{ team.name|equipo }}{% endif %}</th>
             <td class="pts">{{ team.points }}</td>
             <td>{{ team.gf }}</td>
             <td>{{ team.ga }}</td>

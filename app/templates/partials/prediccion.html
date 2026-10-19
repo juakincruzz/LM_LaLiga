@@ -6,9 +6,9 @@
 {% set probs = {"1": p.p1, "X": p.px, "2": p.p2} %}
 <div class="duelo">
     <div class="marcador duelo__marcador">
-        <span class="duelo__equipo">{{ escudo(p.local.nombre, 32) }}{{ p.local.nombre|equipo }}</span>
+        <a class="duelo__equipo enlace-equipo" href="/equipo/{{ p.local.nombre|urlencode }}">{{ escudo(p.local.nombre, 32) }}{{ p.local.nombre|equipo }}</a>
         <span class="marcador__num">{{ top.local }}-{{ top.visitante }}</span>
-        <span class="duelo__equipo">{{ escudo(p.visitante.nombre, 32) }}{{ p.visitante.nombre|equipo }}</span>
+        <a class="duelo__equipo enlace-equipo" href="/equipo/{{ p.visitante.nombre|urlencode }}">{{ escudo(p.visitante.nombre, 32) }}{{ p.visitante.nombre|equipo }}</a>
         <span class="marcador__lbl">Marcador más probable · {{ "%.1f"|format(top.prob * 100) }} % · {{ p.fecha }}</span>
     </div>
 

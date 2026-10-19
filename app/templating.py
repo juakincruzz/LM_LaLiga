@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import LEAGUE_CODE, get_current_season, get_league_config, season_label
 from app.escudos import escudo_svg
-from core.equipos import nombre_visible
+from core.equipos import EGA, ESCUDOS, nombre_visible
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -28,6 +28,12 @@ templates.env.globals["temporada_actual"] = season_label(get_current_season())
 templates.env.filters["temporadas"] = _temporadas
 templates.env.filters["equipo"] = nombre_visible
 templates.env.globals["escudo"] = escudo_svg
+templates.env.globals["ega"] = EGA
+
+# Los ascendidos provisionales de la proyección ("Ascendido 1"…) no tienen
+# ficha: no se enlazan. Un ascendido real se enlaza en cuanto tiene escudo.
+_PROVISIONALES = set(get_league_config(LEAGUE_CODE).get("next_season", {}).get("promoted_teams", []))
+templates.env.globals["tiene_ficha"] = lambda nombre: nombre in ESCUDOS or nombre not in _PROVISIONALES
 
 # Versión de los estáticos para las URL (?v=…): sin ella el navegador sigue
 # usando el CSS/JS antiguo de su caché después de un cambio.
