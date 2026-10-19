@@ -189,3 +189,114 @@ def fuertes_debiles(df: pd.DataFrame, equipo: str, n: int = 3) -> dict:
     fuertes = [d for z, d in puntuadas if z > 0][:n]
     debiles = [d for z, d in reversed(puntuadas) if z < 0][:n]
     return {"fuertes": fuertes, "debiles": debiles}
+
+
+# --- Posible 11 y mejores jugadores (alineaciones de Understat) --------------
+
+# Altura en el campo (0 arriba = ataque, 100 abajo = portería propia) según el
+# prefijo de la posición de Understat: GK, DR/DC/DL, DMC, MC, AML/AMC, FW…
+FILAS = [("GK", 90), ("DM", 58), ("AM", 30), ("FW", 13), ("D", 72), ("M", 46)]
+ORDEN_LADO = {"L": 0, "C": 1, "R": 2}
+CICLO_AMARILLAS = 5  # en La Liga, cada 5 amarillas un partido de sanción
+
+
+def _fila(posicion: str) -> int:
+    return next((y for prefijo, y in FILAS if posicion.startswith(prefijo)), 46)
+
+
+def _lado(posicion: str) -> int:
+    sufijo = posicion[-1] if len(posicion) > 1 and posicion not in ("GK",) else "C"
+    return ORDEN_LADO.get(sufijo, 1)
+
+
+def _numerico(lineups: pd.DataFrame) -> pd.DataFrame:
+    df = lineups.copy()
+    for col in ("minutes", "goals", "assists", "xg", "key_passes", "yellow", "red"):
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+    df["starter"] = df["starter"].astype(bool)
+    return df
+
+
+def posible_once(lineups: pd.DataFrame, equipo: str, n_partidos: int = 5) -> dict:
+    """El 11 que más se repite en los últimos `n_partidos` del equipo.
+
+    Es una estimación: titularidades, luego si fue titular en el último
+    partido, luego minutos. Un portero obligatorio. Cada jugador va en la
+    posición de su titularidad más reciente. No sabe de lesiones.
+    """
+    df = _numerico(lineups)
+    propios = df[df["team"] == equipo]
+    if propios.empty:
+        return {"partidos": 0, "jugadores": []}
+
+    partidos = propios.drop_duplicates("match_id").sort_values("date", kind="mergesort")["match_id"]
+    recientes = list(partidos.tail(n_partidos))
+    ultimo = recientes[-1]
+    tramo = propios[propios["match_id"].isin(recientes)]
+    titulares = tramo[tramo["starter"]].sort_values("date", kind="mergesort")
+
+    resumen = titulares.groupby("player_id").agg(
+        nombre=("player", "last"),
+        posicion=("position", "last"),
+        titularidades=("match_id", "nunique"),
+        minutos=("minutes", "sum"),
+    )
+    resumen["en_ultimo"] = resumen.index.isin(titulares.loc[titulares["match_id"] == ultimo, "player_id"])
+    resumen = resumen.sort_values(["titularidades", "en_ultimo", "minutos"], ascending=False, kind="mergesort")
+
+    porteros = resumen[resumen["posicion"] == "GK"].head(1)
+    once = pd.concat([porteros, resumen[resumen["posicion"] != "GK"].head(10)])
+
+    amarillas = propios.groupby("player_id")["yellow"].sum()
+    expulsados = set(propios.loc[(propios["match_id"] == ultimo) & (propios["red"] > 0), "player_id"])
+
+    jugadores = []
+    for pid, j in once.iterrows():
+        jugadores.append({
+            "nombre": j["nombre"],
+            "posicion": j["posicion"],
+            "y": float(_fila(j["posicion"])),
+            "titularidades": int(j["titularidades"]),
+            "aviso_amarillas": int(amarillas.get(pid, 0)) % CICLO_AMARILLAS == CICLO_AMARILLAS - 1,
+            "expulsado": pid in expulsados,
+        })
+
+    # Reparto horizontal dentro de cada línea: izquierda, centro, derecha
+    for y in {j["y"] for j in jugadores}:
+        linea = sorted((j for j in jugadores if j["y"] == y), key=lambda j: _lado(j["posicion"]))
+        for i, j in enumerate(linea):
+            j["x"] = (i + 1) * 100 / (len(linea) + 1)
+
+    return {"partidos": len(recientes), "jugadores": jugadores}
+
+
+CATEGORIAS = {
+    "Goles": "goals",
+    "Asistencias": "assists",
+    "Ocasiones (xG)": "xg",
+    "Pases clave": "key_passes",
+    "Minutos": "minutes",
+    "Tarjetas": "tarjetas",
+}
+
+
+def mejores_jugadores(lineups: pd.DataFrame, equipo: str, n: int = 3) -> dict[str, list[tuple[str, float]]]:
+    """Top `n` del equipo por categoría, sumando solo lo jugado CON este equipo
+    (un traspasado a mitad de temporada no arrastra lo del club anterior)."""
+    df = _numerico(lineups)
+    propios = df[df["team"] == equipo].assign(tarjetas=lambda d: d["yellow"] + d["red"])
+    if propios.empty:
+        return {cat: [] for cat in CATEGORIAS}
+
+    totales = propios.groupby("player_id").agg(
+        nombre=("player", "last"), **{col: (col, "sum") for col in CATEGORIAS.values()}
+    )
+    totales["xg"] = totales["xg"].round(1)
+
+    mejores = {}
+    for categoria, col in CATEGORIAS.items():
+        top = totales[totales[col] > 0].sort_values(col, ascending=False, kind="mergesort").head(n)
+        mejores[categoria] = [
+            (fila["nombre"], float(fila[col]) if col == "xg" else int(fila[col])) for _, fila in top.iterrows()
+        ]
+    return mejores
