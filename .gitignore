@@ -60,3 +60,4 @@ data/db.sqlite*
 
 # Salida del estudio de fiabilidad (se regenera)
 experimentos/resultados.csv
+.superpowers/
