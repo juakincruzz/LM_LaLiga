@@ -4,6 +4,7 @@ Punto único donde entran los partidos al sistema. Antes esta función solo
 estampaba un timestamp: la tabla `matches` nunca se rellenaba, así que la
 página de liga mostraba siempre 0 partidos y creía estar en off-season.
 """
+import asyncio
 from datetime import datetime
 
 import aiosqlite
@@ -15,6 +16,7 @@ from app.config import get_current_season
 from core.dataset import load_season
 from core.equipos import EquipoDesconocidoError
 from scripts.data_manager_generic import download_calendar, download_league_data
+from scripts.understat import download_understat
 
 
 async def _upsert_teams(db: aiosqlite.Connection, league_code: str, names: list[str]) -> dict[str, int]:
@@ -82,7 +84,9 @@ async def _upsert_matches(
     return len(filas)
 
 
-async def update_league_data(db: aiosqlite.Connection, league_code: str, season: str | None = None) -> dict:
+async def update_league_data(
+    db: aiosqlite.Connection, league_code: str, season: str | None = None, on_progress=None
+) -> dict:
     """Descarga resultados y calendario y vuelca equipos y partidos en la BD.
 
     Descarga siempre (no usa la caché en disco): el sentido del botón
@@ -91,6 +95,10 @@ async def update_league_data(db: aiosqlite.Connection, league_code: str, season:
     El calendario es lo que da los partidos pendientes (el CSV de resultados
     solo trae los jugados). Si no se puede descargar, se sigue solo con los
     resultados y se avisa: sin él la temporada parecería terminada.
+
+    Lo mismo con Understat (alineaciones, para la ficha de equipo): si falla,
+    la actualización sigue siendo un éxito y lo dice en `aviso_jugadores`.
+    `on_progress(hechos, total)` se llama desde un hilo, partido a partido.
     """
     season = season or get_current_season()
     download_league_data(league_code, season)
@@ -115,4 +123,16 @@ async def update_league_data(db: aiosqlite.Connection, league_code: str, season:
     resumen = {"equipos": len(nombres), "partidos": n_partidos, "jugados": jugados}
     if aviso_calendario:
         resumen["aviso"] = aviso_calendario
+
+    # En un hilo: la primera vez son ~380 peticiones con pausa entre ellas, y
+    # en el event loop congelarían el servidor (y el sondeo del progreso).
+    try:
+        understat = await asyncio.to_thread(download_understat, league_code, season, on_progress)
+        resumen["jugadores"] = understat["partidos"] - understat["faltan"]
+        if understat["faltan"]:
+            resumen["aviso_jugadores"] = (
+                f"faltan {understat['faltan']} alineaciones; se completarán en la próxima actualización"
+            )
+    except (requests.RequestException, EquipoDesconocidoError, KeyError, ValueError) as e:
+        resumen["aviso_jugadores"] = f"sin datos de jugadores ({type(e).__name__}: {e})"
     return resumen

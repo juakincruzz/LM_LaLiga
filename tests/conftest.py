@@ -126,13 +126,16 @@ def mock_download():
 @pytest.fixture(autouse=True)
 def understat_offline(monkeypatch):
     """Understat sin red por defecto: `update_league_data` lo descarga, y un
-    test que no pida `mock_understat` no debe salir a internet."""
+    test que no pida `mock_understat` no debe salir a internet.
+
+    Se parchea `scripts.understat._get` y no `requests.get`: el módulo
+    `requests` es uno solo, y parchearlo pisaría el `mock_download` de
+    football-data."""
     import scripts.understat as understat
 
     monkeypatch.setattr(understat, "PAUSA", 0)
     monkeypatch.setattr(
-        understat.requests, "get",
-        mock.MagicMock(side_effect=requests.ConnectionError("sin red en tests")),
+        understat, "_get", mock.MagicMock(side_effect=requests.ConnectionError("sin red en tests"))
     )
 
 
@@ -144,20 +147,15 @@ def mock_understat(monkeypatch):
 
     carpeta = FIXTURES_DIR / "understat"
 
-    def responder(url, headers=None, timeout=30):
-        if "getLeagueData" in url:
-            fichero = carpeta / f"liga_{url.rstrip('/').split('/')[-1]}.json"
-        else:
-            fichero = carpeta / f"partido_{url.rstrip('/').split('/')[-1]}.json"
-        respuesta = mock.MagicMock()
+    def responder(url):
+        prefijo = "liga" if "getLeagueData" in url else "partido"
+        fichero = carpeta / f"{prefijo}_{url.rstrip('/').split('/')[-1]}.json"
         if not fichero.exists():
-            respuesta.raise_for_status.side_effect = requests.HTTPError(f"404 {url}")
-        else:
-            respuesta.json.return_value = json.loads(fichero.read_text())
-        return respuesta
+            raise requests.HTTPError(f"404 {url}")
+        return json.loads(fichero.read_text())
 
     falso = mock.MagicMock(side_effect=responder)
-    monkeypatch.setattr(understat.requests, "get", falso)
+    monkeypatch.setattr(understat, "_get", falso)
     return falso
 
 

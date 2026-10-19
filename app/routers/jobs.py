@@ -74,10 +74,13 @@ async def _job_update_data(ctx, league_code) -> dict:
     from app.services.data_service import update_league_data
 
     await ctx.progress(20, "Descargando datos…")
-    resumen = await update_league_data(ctx.db, league_code)
+    resumen = await update_league_data(
+        ctx.db, league_code, on_progress=lambda h, t: ctx.progress_threadsafe(h, t, "Alineaciones")
+    )
     mensaje = f"{resumen['jugados']} jugados y {resumen['partidos'] - resumen['jugados']} pendientes"
-    if "aviso" in resumen:
-        mensaje += f" · {resumen['aviso']}"
+    for aviso in ("aviso", "aviso_jugadores"):
+        if aviso in resumen:
+            mensaje += f" · {resumen[aviso]}"
     return {**resumen, "mensaje": mensaje}
 
 
@@ -134,11 +137,11 @@ class JobContext:
     async def progress(self, pct: int, message: str) -> None:
         await _update_job(self.db, self.job_id, progress=pct, message=message)
 
-    def progress_threadsafe(self, done: int, total: int) -> None:
+    def progress_threadsafe(self, done: int, total: int, etiqueta: str = "Simulación") -> None:
         """Para llamar desde un hilo de `asyncio.to_thread` (p.ej. dentro del
         Monte Carlo), donde no hay event loop propio para hacer `await`."""
         pct = 15 + int(80 * done / total)
-        coro = self.progress(pct, f"Simulación {done}/{total}")
+        coro = self.progress(pct, f"{etiqueta} {done}/{total}")
         asyncio.run_coroutine_threadsafe(coro, self._loop)
 
 

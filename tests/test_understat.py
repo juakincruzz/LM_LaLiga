@@ -43,10 +43,10 @@ def test_carga_ignora_partido_sin_json(mock_understat, data_root):
 def test_un_partido_que_falla_no_aborta_el_resto(mock_understat, monkeypatch):
     original = mock_understat.side_effect
 
-    def con_un_fallo(url, **kw):
+    def con_un_fallo(url):
         if url.endswith("/29504"):
             raise ConnectionError("corte")
-        return original(url, **kw)
+        return original(url)
 
     mock_understat.side_effect = con_un_fallo
     assert download_understat("SP1", "2526") == {"partidos": 6, "nuevos": 5, "faltan": 1}

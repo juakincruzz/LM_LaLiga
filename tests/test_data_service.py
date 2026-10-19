@@ -49,3 +49,40 @@ async def test_update_descarga_siempre(temp_db, mock_download):
 
     descargas_csv = [c for c in mock_download.call_args_list if "football-data" in c.args[0]]
     assert len(descargas_csv) == 1
+
+
+async def test_actualizar_trae_alineaciones(temp_db, mock_download, mock_understat):
+    progreso = []
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        resumen = await update_league_data(db, "SP1", on_progress=lambda h, t: progreso.append((h, t)))
+
+    assert resumen["jugadores"] == 6
+    assert "aviso_jugadores" not in resumen
+    assert progreso[-1] == (6, 6)
+
+
+async def test_actualizar_sin_understat_sigue(temp_db, mock_download):
+    # Sin mock_understat: la fixture autouse deja Understat sin red
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        resumen = await update_league_data(db, "SP1")
+        assert await _contar(db, "matches") == 380
+
+    assert resumen["aviso_jugadores"].startswith("sin datos de jugadores")
+
+
+async def test_job_de_actualizar_menciona_el_aviso_de_jugadores(client, temp_db, mock_download):
+    import asyncio
+
+    resp = await client.post("/api/jobs/?job_type=update_data")
+    assert resp.status_code == 200
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        for _ in range(100):
+            fila = await (await db.execute("SELECT status, message FROM job_status")).fetchone()
+            if fila["status"] in ("done", "failed"):
+                break
+            await asyncio.sleep(0.05)
+    assert fila["status"] == "done"
+    assert "sin datos de jugadores" in fila["message"]
