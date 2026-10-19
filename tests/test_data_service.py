@@ -22,7 +22,11 @@ async def test_update_puebla_teams_y_matches(temp_db, mock_download):
         )
         assert (await cursor.fetchone())["n"] == 0
 
-    assert resumen == {"equipos": 20, "partidos": 380, "jugados": 380}
+    # El calendario de test no existe (404): se sigue con los resultados y se avisa
+    assert {k: resumen[k] for k in ("equipos", "partidos", "jugados")} == {
+        "equipos": 20, "partidos": 380, "jugados": 380,
+    }
+    assert "sin calendario" in resumen["aviso"]
 
 
 async def test_update_es_idempotente(temp_db, mock_download):
@@ -43,4 +47,5 @@ async def test_update_descarga_siempre(temp_db, mock_download):
         db.row_factory = aiosqlite.Row
         await update_league_data(db, "SP1")
 
-    mock_download.assert_called_once()
+    descargas_csv = [c for c in mock_download.call_args_list if "football-data" in c.args[0]]
+    assert len(descargas_csv) == 1

@@ -8,15 +8,15 @@ El trabajo pesado de CPU se saca del event loop dentro de cada servicio
 (`asyncio.to_thread`), no aquí: así el acceso a la BD sigue siendo asíncrono y
 el sondeo HTMX puede responder mientras el modelo entrena.
 
-Los trabajos se serializan con `_job_lock`: nada impedía antes lanzar cinco
-entrenamientos XGBoost (n_jobs=-1) a la vez, cada uno reclamando todos los
-núcleos, más cinco escritores SQLite concurrentes. Con el lock, 'queued'
+Los trabajos se serializan con `_job_lock`: nada impide pulsar todos los
+botones a la vez, y cada entrenamiento XGBoost (n_jobs=-1) reclama todos los
+núcleos, además de competir como escritor de SQLite. Con el lock, 'queued'
 significa de verdad "esperando su turno" en vez de arrancar al instante.
 
-(Se descartó una cola con hilo trabajador dedicado: los cinco servicios ya son
+(Se descartó una cola con hilo trabajador dedicado: los servicios ya son
 asíncronos y usan aiosqlite, así que forzarlos a síncrono para encajar en un
-hilo puro habría significado reescribir el acceso a datos de los cinco sin
-ganar nada que el lock no dé ya.)
+hilo puro habría significado reescribir su acceso a datos sin ganar nada que
+el lock no dé ya.)
 """
 import asyncio
 import json
@@ -26,7 +26,7 @@ from typing import Awaitable, Callable
 import aiosqlite
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
-from app.config import get_league_config
+from app.config import LEAGUE_CODE, get_league_config
 from app.database import DB_PATH
 from app.dependencies import get_db_dependency
 from app.templating import templates
@@ -75,7 +75,10 @@ async def _job_update_data(ctx, league_code) -> dict:
 
     await ctx.progress(20, "Descargando datos…")
     resumen = await update_league_data(ctx.db, league_code)
-    return {**resumen, "mensaje": f"{resumen['partidos']} partidos ({resumen['jugados']} jugados)"}
+    mensaje = f"{resumen['jugados']} jugados y {resumen['partidos'] - resumen['jugados']} pendientes"
+    if "aviso" in resumen:
+        mensaje += f" · {resumen['aviso']}"
+    return {**resumen, "mensaje": mensaje}
 
 
 async def _job_train(ctx, league_code) -> dict:
@@ -102,13 +105,6 @@ async def _job_project_next_season(ctx, league_code) -> dict:
     return {"mensaje": "Proyección completada"}
 
 
-async def _job_analyze_transfers(ctx, league_code) -> dict:
-    from app.services.transfer_service import analyze_league_transfers
-
-    await ctx.progress(15, "Consultando Transfermarkt…")
-    return await analyze_league_transfers(ctx.db, league_code)
-
-
 JobHandler = Callable[["JobContext", str], Awaitable[dict]]
 
 JOB_HANDLERS: dict[str, JobHandler] = {
@@ -116,7 +112,14 @@ JOB_HANDLERS: dict[str, JobHandler] = {
     "train": _job_train,
     "simulate": _job_simulate,
     "project_next_season": _job_project_next_season,
-    "analyze_transfers": _job_analyze_transfers,
+}
+
+# Lo que lee el usuario en la tarjeta del trabajo, en vez del identificador.
+JOB_LABELS = {
+    "update_data": "Actualizar datos",
+    "train": "Entrenar modelo",
+    "simulate": "Simular temporada",
+    "project_next_season": "Proyectar temporada",
 }
 
 
@@ -158,7 +161,7 @@ async def _run_job(job_id: int, job_type: str, league_code: str):
                     job_id,
                     status="done",
                     progress=100,
-                    result_json=json.dumps({**resultado, "url": f"/league/{league_code}"}),
+                    result_json=json.dumps({**resultado, "url": "/"}),
                     message=resultado.get("mensaje", "Completado"),
                 )
             except Exception as e:
@@ -170,8 +173,8 @@ async def _run_job(job_id: int, job_type: str, league_code: str):
 async def create_job(
     request: Request,
     job_type: str,
-    league_code: str,
     background_tasks: BackgroundTasks,
+    league_code: str = LEAGUE_CODE,
     db=Depends(get_db_dependency),
 ):
     # Validar ANTES de insertar: un job_type inválido creaba una fila que nadie
@@ -202,7 +205,7 @@ async def create_job(
         "message": "En cola: esperando su turno…" if _job_lock.locked() else "En cola",
         "result_url": "",
     }
-    return templates.TemplateResponse(request, "partials/job_status.html", {"job": job})
+    return _render_job(request, job)
 
 
 @router.get("/{job_id}")
@@ -227,4 +230,9 @@ async def poll_job(request: Request, job_id: int, db=Depends(get_db_dependency))
     except json.JSONDecodeError:
         resultado = {}
     job["result_url"] = resultado.get("url", "")
+    return _render_job(request, job)
+
+
+def _render_job(request: Request, job: dict):
+    job["label"] = JOB_LABELS.get(job["job_type"], job["job_type"])
     return templates.TemplateResponse(request, "partials/job_status.html", {"job": job})

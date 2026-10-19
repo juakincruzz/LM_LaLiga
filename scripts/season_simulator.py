@@ -12,8 +12,8 @@ from collections import Counter, defaultdict
 import numpy as np
 import pandas as pd
 
-from app.config import get_current_season
-from core.features import FEATURE_COLS, feature_row, feature_vector
+from app.config import get_current_season, get_training_seasons
+from core.features import build_state, feature_row, feature_vector
 from core.goals import sample_scoreline
 from core.state import LeagueState
 
@@ -80,14 +80,10 @@ class SeasonSimulator:
 
         Se hace UNA vez y luego se clona con snapshot() en cada simulación: antes
         cada una de las n_sims volvía a reproducir los 380 partidos jugados.
+        Solo ve los partidos que recibe; para el historial completo (H2H de
+        temporadas anteriores) usa `build_current_state` y pasa `base_state`.
         """
-        state = LeagueState()
-        for row in played.itertuples(index=False):
-            state.apply_match(
-                row.HomeTeam, row.AwayTeam,
-                int(row.Home_Goals), int(row.Away_Goals), row.Result, row.Date,
-            )
-        return state
+        return build_state(played, reset_per_season=False)
 
     def simulate_remaining(self, remaining, predictor, stochastic=False, rng=None):
         """Simula los partidos pendientes sobre el estado actual."""
@@ -114,31 +110,38 @@ class SeasonSimulator:
             })
         return self._get_standings(), pd.DataFrame(simulados)
 
-    def simulate(self, df, predictor, start_date=None, stochastic=False, verbose=True, rng=None):
-        """Simula una temporada completa desde cero. Devuelve (clasificación, partidos)."""
+    def simulate(self, df, predictor, start_date=None, stochastic=False, verbose=True, rng=None,
+                 base_state=None):
+        """Simula una temporada completa desde cero. Devuelve (clasificación, partidos).
+
+        `base_state`, si se pasa, es el estado con el que arrancar (ver
+        `build_current_state`); si no, se reconstruye con los jugados de `df`.
+        """
         played, remaining = self.split_played(df, start_date)
 
         if verbose:
             print(f"📅 Partidos ya disputados: {len(played)}")
             print(f"🔮 Partidos pendientes: {len(remaining)}")
 
-        self.state = self.state_from_played(played)
+        self.state = base_state.snapshot() if base_state is not None else self.state_from_played(played)
         return self.simulate_remaining(remaining, predictor, stochastic=stochastic, rng=rng)
 
     def monte_carlo_simulation(self, df, predictor, n_sims=1000, start_date=None, verbose=True,
-                               rng=None, on_progress=None):
+                               rng=None, on_progress=None, base_state=None):
         """Repite la simulación n_sims veces y acumula probabilidades."""
         if verbose:
             print(f"\n🎲 Iniciando Monte Carlo con {n_sims} simulaciones...")
 
         rng = rng if rng is not None else np.random.default_rng()
         played, remaining = self.split_played(df, start_date)
-        base = self.state_from_played(played)
+        base = base_state if base_state is not None else self.state_from_played(played)
 
         champions = []
         top4 = defaultdict(int)
         relegation = defaultdict(int)
         all_final_points = defaultdict(list)
+        all_gf = defaultdict(list)
+        all_ga = defaultdict(list)
 
         for i in range(n_sims):
             sim = SeasonSimulator(base.snapshot())
@@ -151,6 +154,8 @@ class SeasonSimulator:
                 relegation[team] += 1
             for row in standings.itertuples(index=False):
                 all_final_points[row.Team].append(row.Points)
+                all_gf[row.Team].append(row.GF)
+                all_ga[row.Team].append(row.GA)
 
             if on_progress is not None and (i + 1) % 10 == 0:
                 on_progress(i + 1, n_sims)
@@ -171,12 +176,42 @@ class SeasonSimulator:
                 }
                 for team, points in all_final_points.items()
             },
+            'mean_goals': {
+                team: {'gf': np.mean(all_gf[team]), 'ga': np.mean(all_ga[team])} for team in all_gf
+            },
         }
 
         if verbose:
             print(f"✓ Monte Carlo completado ({n_sims} simulaciones)")
 
         return results
+
+
+def build_current_state(league_code: str, season: str | None = None):
+    """Estado de la liga hoy, con la MISMA historia con la que se entrena.
+
+    Recorre las temporadas de entrenamiento anteriores (conservando el H2H y
+    reseteando acumuladores en cada cambio, como `build_training_matrix`) y
+    después los partidos ya jugados de la temporada actual. Devuelve
+    (estado, df de la temporada actual con jugados y pendientes).
+    """
+    from core.dataset import load_season, load_seasons, played_only
+
+    season = season or get_current_season()
+    actual = load_season(league_code, season)
+    anteriores = [s for s in get_training_seasons(league_code) if s != season]
+
+    historia = played_only(load_seasons(league_code, anteriores)) if anteriores else actual.iloc[0:0]
+    jugados = played_only(actual)
+    state = build_state(pd.concat([historia, jugados], ignore_index=True))
+    if jugados.empty:
+        state.start_new_season()  # pretemporada: nadie arrastra los puntos de la anterior
+
+    equipos = set(actual["HomeTeam"]) | set(actual["AwayTeam"])
+    state.keep_only(equipos)
+    for equipo in equipos:
+        state.team(equipo)  # los ascendidos existen aunque aún no hayan jugado
+    return state, actual
 
 
 def simulate_season(
@@ -213,27 +248,39 @@ def simulate_season(
     predictor = LeaguePredictor(league_code)
     predictor.load_model()  # lanza ModelNotTrainedError si no hay .pkl
 
+    # Después de las comprobaciones: cargar el historial cuesta (y puede descargar)
+    base_state, df = build_current_state(league_code, season)
+
     rng = np.random.default_rng(seed)
 
-    sim = SeasonSimulator()
-    standings_df, _ = sim.simulate(df, predictor, stochastic=True, verbose=False, rng=rng)
-
-    mc_results = sim.monte_carlo_simulation(
-        df, predictor, n_sims=n_sims, verbose=False, rng=rng, on_progress=on_progress
+    # Todo sale del mismo Monte Carlo: antes los puntos venían de UNA simulación
+    # suelta y las probabilidades de otras 500, y un equipo podía salir 4.º con
+    # más probabilidad de título que el 3.º.
+    mc_results = SeasonSimulator().monte_carlo_simulation(
+        df, predictor, n_sims=n_sims, verbose=False, rng=rng, on_progress=on_progress,
+        base_state=base_state,
     )
-    champion_probs = mc_results.get('champion_probabilities', {})
-    relegation_probs = mc_results.get('relegation_probabilities', {})
+    champion_probs = mc_results['champion_probabilities']
+    relegation_probs = mc_results['relegation_probabilities']
+    puntos = mc_results['final_points_distribution']
+    goles = mc_results['mean_goals']
 
-    standings_list = []
-    for _, row in standings_df.iterrows():
-        team_name = row['Team']
-        standings_list.append({
-            'name': team_name,
-            'points': int(row['Points']),
-            'gf': int(row['GF']),
-            'ga': int(row['GA']),
-            'champion_prob': champion_probs.get(team_name),
-            'relegation_prob': relegation_probs.get(team_name),
-        })
-
+    standings_list = [
+        {
+            'name': team,
+            'points': round(float(puntos[team]['mean'])),
+            'points_std': float(puntos[team]['std']),
+            'gf': round(float(goles[team]['gf'])),
+            'ga': round(float(goles[team]['ga'])),
+            # 0.0 es un resultado ("no ganó ninguna simulación"), no un hueco
+            'champion_prob': champion_probs.get(team, 0.0),
+            'relegation_prob': relegation_probs.get(team, 0.0),
+        }
+        for team in puntos
+    ]
+    # Puntos esperados sin redondear, y la diferencia de goles como desempate
+    standings_list.sort(
+        key=lambda t: (puntos[t['name']]['mean'], goles[t['name']]['gf'] - goles[t['name']]['ga']),
+        reverse=True,
+    )
     return standings_list

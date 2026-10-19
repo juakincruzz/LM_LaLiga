@@ -3,39 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}LM LaLiga Dashboard{% endblock %}</title>
+    <title>{% block title %}LM LaLiga{% endblock %}</title>
+    {# Balón de 8×8 píxeles como favicon #}
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath fill='%23000' d='M2 0h4v1h1v1h1v4H7v1H6v1H2V7H1V6H0V2h1V1h1z'/%3E%3Cpath fill='%23fff' d='M2 1h4v1h1v4H6v1H2V6H1V2h1z'/%3E%3Cpath fill='%23000' d='M3 3h2v2H3z'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+    <link rel="stylesheet" href="/static/css/retro.css?v={{ version_estaticos }}">
+    {# Se lee antes de pintar para que el efecto CRT apagado no parpadee al cargar #}
+    <script>try { if (localStorage.getItem("crt") === "off") document.documentElement.classList.add("sin-crt"); } catch (e) {}</script>
     <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/static/css/custom.css">
+    <script src="/static/js/retro.js?v={{ version_estaticos }}" defer></script>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-blue-900 text-white p-4 shadow-md">
-        <div class="container mx-auto flex items-center justify-between">
-            <a href="/" class="text-xl font-bold flex items-center gap-2">
-                <i data-lucide="trophy"></i>
-                LM LaLiga
-            </a>
-            <div class="flex gap-4 text-sm">
-                <a href="/" class="hover:text-blue-200 transition">Dashboard</a>
-                {% for liga in ligas %}
-                <a href="/league/{{ liga.code }}" class="hover:text-blue-200 transition"
-                   title="{{ liga.name }}">{{ liga.code }}</a>
-                {% endfor %}
-            </div>
-        </div>
+<body>
+    <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+    <nav class="menu" aria-label="Principal">
+        <a href="/" class="menu__marca">
+            <svg class="menu__balon" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">
+                <path fill="#000" d="M2 0h4v1h1v1h1v4H7v1H6v1H2V7H1V6H0V2h1V1h1z"/>
+                <path fill="#fff" d="M2 1h4v1h1v4H6v1H2V6H1V2h1z"/>
+                <path fill="#000" d="M3 3h2v2H3z"/>
+            </svg>
+            LM LALIGA
+        </a>
+        <span class="menu__item"><u>T</u>emporada {% block temporada_menu %}{{ temporada_actual }}{% endblock %}</span>
+        <span class="menu__hueco"></span>
+        <button type="button" id="conmutar-crt" class="menu__item menu__boton" aria-pressed="true">CRT: ON</button>
+        <span class="menu__reloj" id="reloj" aria-hidden="true">--:--</span>
     </nav>
 
-    <main class="container mx-auto p-6">
+    <main id="contenido" class="contenedor">
         {% block content %}{% endblock %}
     </main>
 
-    <script>
-        lucide.createIcons();
-        // Re-create icons after HTMX swaps
-        document.body.addEventListener('htmx:afterSwap', function() {
-            lucide.createIcons();
-        });
-    </script>
+    <footer class="pie contenedor">
+        Datos: football-data.co.uk · Modelo: XGBoost · Simulación: Monte Carlo
+    </footer>
+
+    {% block barra_teclas %}{% endblock %}
 </body>
 </html>

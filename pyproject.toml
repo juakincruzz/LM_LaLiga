@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lm-laliga"
 version = "0.2.0"
-description = "Dashboard de predicción y simulación para 5 ligas europeas"
+description = "Predicción y simulación de La Liga"
 requires-python = ">=3.12"
 
 dependencies = [
@@ -38,8 +38,7 @@ dev = [
 packages = ["app", "core", "models", "scripts"]
 
 [tool.pytest.ini_options]
-# testpaths evita que pytest intente recoger transfermarkt-api/tests (submódulo
-# con sus propias dependencias), que hoy rompe `pytest` a secas.
+# testpaths limita la recogida a tests/ (evita, p. ej., los entornos virtuales).
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q -m 'not slow'"
@@ -49,7 +48,7 @@ markers = [
 
 [tool.ruff]
 line-length = 110
-extend-exclude = ["transfermarkt-api", "venv", ".venv"]
+extend-exclude = ["venv", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]

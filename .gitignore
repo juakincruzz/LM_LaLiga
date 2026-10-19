@@ -57,3 +57,6 @@ data/db.sqlite*
 
 # Los CSV de tests/fixtures sí se versionan: son inmutables y la suite depende de ellos
 !tests/fixtures/*.csv
+
+# Salida del estudio de fiabilidad (se regenera)
+experimentos/resultados.csv

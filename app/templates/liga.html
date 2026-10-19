@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}La Liga {{ temporada_label }} · LM LaLiga{% endblock %}
+{% block temporada_menu %}{{ temporada_label }}{% endblock %}
+
+{# Escala de las barras de accuracy: 0–70 %. Empieza en cero, pero no llega al
+   100 % porque ningún predictor de fútbol pasa del ~55 % y las diferencias
+   entre modelo y baselines quedarían invisibles. #}
+{% set ESCALA = 0.70 %}
+
+{% macro barra(etiqueta, valor, clase="") -%}
+<li class="{{ clase }}">
+    <span>{{ etiqueta }}</span>
+    <span class="valor">{{ "%.1f"|format(valor * 100) }}%</span>
+    <span class="barra" aria-hidden="true"><i style="width: {{ "%.1f"|format([valor / ESCALA * 100, 100]|min) }}%"></i></span>
+</li>
+{%- endmacro %}
+
+{% set acciones = [
+    {"tecla": "1", "job": "update_data", "nombre": "Actualizar datos", "corto": "Actualiza",
+     "desc": "Descarga los resultados de la " ~ temporada_label ~ "."},
+    {"tecla": "2", "job": "train", "nombre": "Entrenar modelo", "corto": "Entrena",
+     "desc": "XGBoost sobre varias temporadas."},
+    {"tecla": "3", "job": "simulate", "nombre": "Simular temporada", "corto": "Simula",
+     "desc": "Monte Carlo de los partidos pendientes.",
+     "bloqueado": not temporada.puede_simular,
+     "motivo": "Solo se puede simular si quedan partidos por jugar"},
+    {"tecla": "4", "job": "project_next_season", "nombre": "Proyectar " ~ next_season_label, "corto": "Proyecta",
+     "desc": "Tabla probable de la próxima temporada."},
+] %}
+
+{% block content %}
+<header class="portada">
+    <p class="portada__pre">Simulador de temporada</p>
+    <h1 class="portada__titulo">{{ liga.name }}<span class="cursor" aria-hidden="true">_</span></h1>
+    <p class="portada__sub">{{ liga.country }} · {{ liga.teams }} equipos · Temporada {{ temporada_label }}</p>
+</header>
+
+<div class="aviso aviso--{{ temporada.estado.value }}" role="status">
+    <span class="aviso__chip">{{ temporada.etiqueta }}</span>
+    <p>
+    {% if temporada.estado.value == 'sin_datos' %}
+        Todavía no hay partidos cargados. Pulsa «Actualizar datos» para descargar la temporada.
+    {% elif temporada.estado.value == 'finalizada' %}
+        Los {{ temporada.total }} partidos de la {{ temporada_label }} están jugados: no queda nada que simular.
+        Usa «Proyectar {{ next_season_label }}».
+    {% elif temporada.estado.value == 'pretemporada' %}
+        Hay {{ temporada.total }} partidos programados y ninguno jugado todavía.
+    {% else %}
+        {{ temporada.jugados }} partidos jugados y {{ temporada.pendientes }} pendientes.
+    {% endif %}
+    </p>
+</div>
+
+<div class="rejilla">
+    <div class="columna">
+        <section class="ventana" id="ventana-jornada" aria-labelledby="t-jornada">
+            <h2 id="t-jornada" class="ventana__titulo">Próxima jornada</h2>
+            <div id="jornada" hx-get="/prediccion/jornada" hx-trigger="load" hx-swap="innerHTML">
+                <p class="nota">Calculando predicciones<span class="cursor" aria-hidden="true">_</span></p>
+            </div>
+        </section>
+
+        <section class="ventana" id="ventana-duelo" aria-labelledby="t-duelo">
+            <h2 id="t-duelo" class="ventana__titulo">Cara a cara</h2>
+            {% if equipos %}
+            <form class="duelo__form" hx-get="/prediccion/partido" hx-target="#prediccion" hx-swap="innerHTML">
+                <label>
+                    <span class="duelo__lbl">Local</span>
+                    <select name="local" class="selector" required>
+                        <option value="" disabled selected>— Elige —</option>
+                        {% for e in equipos %}<option value="{{ e }}">{{ e|equipo }}</option>{% endfor %}
+                    </select>
+                </label>
+                <span class="duelo__vs" aria-hidden="true">VS</span>
+                <label>
+                    <span class="duelo__lbl">Visitante</span>
+                    <select name="visitante" class="selector" required>
+                        <option value="" disabled selected>— Elige —</option>
+                        {% for e in equipos %}<option value="{{ e }}">{{ e|equipo }}</option>{% endfor %}
+                    </select>
+                </label>
+                <button type="submit" class="boton boton--enlace">Predecir</button>
+            </form>
+            <div id="prediccion" aria-live="polite">
+                <p class="nota">Elige dos equipos, o pulsa «Ver» en un partido de la jornada.</p>
+            </div>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Pulsa «Actualizar datos» para cargar los equipos.</p>
+            {% endif %}
+        </section>
+
+
+        <section class="ventana" aria-labelledby="t-clasificacion">
+            <h2 id="t-clasificacion" class="ventana__titulo">Clasificación</h2>
+            {% if sim_standings %}
+            <p class="ventana__sub">
+                {{ sim_label or "Clasificación proyectada" }} · Monte Carlo{% if sim_count %} · {{ sim_count }} simulaciones{% endif %}
+            </p>
+            {% with standings=sim_standings %}
+                {% include "partials/standings_table.html" %}
+            {% endwith %}
+            {% else %}
+            <p class="vacio">
+                <span class="vacio__icono" aria-hidden="true">?</span>
+                Entrena un modelo y ejecuta una simulación (o una proyección) para ver la clasificación.
+            </p>
+            {% endif %}
+        </section>
+    </div>
+
+    <aside class="columna">
+        <section class="ventana" aria-labelledby="t-acciones">
+            <h2 id="t-acciones" class="ventana__titulo">Acciones</h2>
+            {# hx-disabled-elt evita el doble clic, que lanzaba dos trabajos simultáneos #}
+            <div class="acciones">
+                {% for a in acciones %}
+                <button type="button" class="boton" data-tecla="{{ a.tecla }}"
+                        hx-post="/api/jobs/?job_type={{ a.job }}"
+                        hx-target="#job-container" hx-swap="afterbegin" hx-disabled-elt="this"
+                        {% if a.bloqueado %}disabled title="{{ a.motivo }}"{% endif %}>
+                    <span class="boton__tecla" aria-hidden="true">{{ a.tecla }}</span>
+                    <span class="boton__texto">
+                        <span class="boton__nombre">{{ a.nombre }}</span>
+                        <span class="boton__desc">{{ a.motivo if a.bloqueado else a.desc }}</span>
+                    </span>
+                </button>
+                {% endfor %}
+            </div>
+            <p class="nota">Atajo: pulsa las teclas 1–4.</p>
+        </section>
+
+        <div id="job-container" class="trabajos" aria-live="polite"></div>
+
+        <section class="ventana" aria-labelledby="t-estado">
+            <h2 id="t-estado" class="ventana__titulo">Estado</h2>
+            {% if temporada.total %}
+            <div class="progreso" role="progressbar" aria-label="Partidos jugados"
+                 aria-valuenow="{{ temporada.jugados }}" aria-valuemin="0" aria-valuemax="{{ temporada.total }}">
+                <i style="width: {{ "%.1f"|format(temporada.jugados / temporada.total * 100) }}%"></i>
+            </div>
+            {% endif %}
+            <dl class="datos">
+                <div><dt>Partidos</dt><dd>{{ temporada.total }}</dd></div>
+                <div><dt>Jugados</dt><dd>{{ temporada.jugados }}</dd></div>
+                <div><dt>Pendientes</dt><dd>{{ temporada.pendientes }}</dd></div>
+                {% if temporada.ultimo_partido %}
+                <div><dt>Último partido</dt><dd>{{ temporada.ultimo_partido }}</dd></div>
+                {% endif %}
+                {% if db_league and db_league.last_updated %}
+                <div><dt>Actualizado</dt><dd>{{ db_league.last_updated[:16].replace('T', ' ') }}</dd></div>
+                {% endif %}
+            </dl>
+        </section>
+
+        <section class="ventana" aria-labelledby="t-modelo">
+            <h2 id="t-modelo" class="ventana__titulo">Modelo</h2>
+            {% if modelo %}
+            <p class="marcador">
+                <span class="marcador__num">{{ "%.1f"|format(modelo.accuracy * 100) }}%</span>
+                <span class="marcador__lbl">Precisión fuera de muestra</span>
+            </p>
+            <ul class="barras" aria-label="Precisión del modelo frente a las referencias">
+                {{ barra("Modelo XGBoost", modelo.accuracy, "es-modelo") }}
+                {% if modelo.baseline_bookmaker is not none %}{{ barra("Casas de apuestas", modelo.baseline_bookmaker) }}{% endif %}
+                {% if modelo.baseline_home is not none %}{{ barra("Siempre local", modelo.baseline_home) }}{% endif %}
+                {% if modelo.baseline_majority is not none %}{{ barra("Clase mayoritaria", modelo.baseline_majority) }}{% endif %}
+            </ul>
+            <dl class="datos">
+                {% if modelo.logloss is not none %}
+                <div><dt>Log-loss</dt><dd>{{ "%.3f"|format(modelo.logloss) }}</dd></div>
+                <div><dt>Brier</dt><dd>{{ "%.3f"|format(modelo.brier) }}</dd></div>
+                {% endif %}
+                <div><dt>Entrenamiento</dt><dd>{{ modelo.n_train }}</dd></div>
+                <div><dt>Test</dt><dd>{{ modelo.n_test }}</dd></div>
+            </dl>
+            <p class="nota">
+                {% if modelo.test_period %}Test: {{ modelo.test_period }}.{% endif %}
+                {% if modelo.seasons_used %}Temporadas: {{ modelo.seasons_used|temporadas }}.{% endif %}
+            </p>
+            <p class="nota">
+                Predecir fútbol tiene un techo real en torno al 53–55 %, el de las casas
+                de apuestas: la referencia útil son las barras grises, no el 100 %.
+            </p>
+            {% else %}
+            <p class="vacio">
+                <span class="vacio__icono" aria-hidden="true">!</span>
+                Aún no se ha entrenado ningún modelo. Pulsa «Entrenar modelo».
+            </p>
+            {% endif %}
+        </section>
+    </aside>
+</div>
+{% endblock %}
+
+{% block barra_teclas %}
+<nav class="teclas" aria-label="Atajos de teclado">
+    {% for a in acciones %}
+    <button type="button" data-dispara="{{ a.tecla }}" {% if a.bloqueado %}disabled{% endif %}
+            aria-label="{{ a.nombre }} (tecla {{ a.tecla }})">
+        <b>{{ a.tecla }}</b><span>{{ a.corto }}</span>
+    </button>
+    {% endfor %}
+</nav>
+{% endblock %}

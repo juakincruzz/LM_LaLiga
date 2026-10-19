@@ -9,9 +9,12 @@ from datetime import datetime
 import aiosqlite
 import pandas as pd
 
+import requests
+
 from app.config import get_current_season
-from core.dataset import normalize_frame, read_csv
-from scripts.data_manager_generic import download_league_data
+from core.dataset import load_season
+from core.equipos import EquipoDesconocidoError
+from scripts.data_manager_generic import download_calendar, download_league_data
 
 
 async def _upsert_teams(db: aiosqlite.Connection, league_code: str, names: list[str]) -> dict[str, int]:
@@ -32,11 +35,20 @@ async def _upsert_matches(
 ) -> int:
     """Inserta o actualiza los partidos. Idempotente gracias a idx_matches_unique,
     así que pulsar 'Actualizar datos' dos veces no duplica nada."""
+    # Los pendientes se regeneran en cada actualización: si un partido se
+    # aplaza, su fecha cambia y la fila vieja se quedaría como un pendiente
+    # fantasma (la clave única incluye la fecha).
+    await db.execute(
+        "DELETE FROM matches WHERE league_code=? AND season=? AND status='scheduled'",
+        (league_code, season),
+    )
+
     filas = []
     for row in df.itertuples(index=False):
         home_goals = getattr(row, "Home_Goals", None)
         away_goals = getattr(row, "Away_Goals", None)
         jugado = pd.notna(home_goals) and pd.notna(away_goals)
+        jornada = getattr(row, "Matchday", None)
         filas.append(
             (
                 league_code,
@@ -47,6 +59,7 @@ async def _upsert_matches(
                 int(away_goals) if jugado else None,
                 row.Result if jugado else None,
                 season,
+                int(jornada) if pd.notna(jornada) else None,
                 "played" if jugado else "scheduled",
             )
         )
@@ -54,12 +67,14 @@ async def _upsert_matches(
     await db.executemany(
         """
         INSERT INTO matches
-            (league_code, date, home_team_id, away_team_id, home_goals, away_goals, result, season, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (league_code, date, home_team_id, away_team_id, home_goals, away_goals, result,
+             season, matchday, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(league_code, season, date, home_team_id, away_team_id) DO UPDATE SET
             home_goals = excluded.home_goals,
             away_goals = excluded.away_goals,
             result     = excluded.result,
+            matchday   = excluded.matchday,
             status     = excluded.status
         """,
         filas,
@@ -68,14 +83,23 @@ async def _upsert_matches(
 
 
 async def update_league_data(db: aiosqlite.Connection, league_code: str, season: str | None = None) -> dict:
-    """Descarga el CSV de la temporada y vuelca equipos y partidos en la BD.
+    """Descarga resultados y calendario y vuelca equipos y partidos en la BD.
 
     Descarga siempre (no usa la caché en disco): el sentido del botón
     'Actualizar datos' es traer los resultados de la última jornada.
+
+    El calendario es lo que da los partidos pendientes (el CSV de resultados
+    solo trae los jugados). Si no se puede descargar, se sigue solo con los
+    resultados y se avisa: sin él la temporada parecería terminada.
     """
     season = season or get_current_season()
-    path = download_league_data(league_code, season)
-    df = normalize_frame(read_csv(path), season=season)
+    download_league_data(league_code, season)
+    try:
+        download_calendar(league_code, season)
+        aviso_calendario = None
+    except (requests.RequestException, EquipoDesconocidoError, KeyError, ValueError) as e:
+        aviso_calendario = f"sin calendario ({type(e).__name__}: {e})"
+    df = load_season(league_code, season, download=False)
 
     nombres = sorted(set(df["HomeTeam"]) | set(df["AwayTeam"]))
     team_ids = await _upsert_teams(db, league_code, nombres)
@@ -88,4 +112,7 @@ async def update_league_data(db: aiosqlite.Connection, league_code: str, season:
     await db.commit()
 
     jugados = int(df["Result"].notna().sum())
-    return {"equipos": len(nombres), "partidos": n_partidos, "jugados": jugados}
+    resumen = {"equipos": len(nombres), "partidos": n_partidos, "jugados": jugados}
+    if aviso_calendario:
+        resumen["aviso"] = aviso_calendario
+    return resumen

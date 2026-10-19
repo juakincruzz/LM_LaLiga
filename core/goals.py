@@ -49,3 +49,40 @@ def sample_scoreline(
         return home_goals, max(away_goals, home_goals + 1)
     empate = round((home_goals + away_goals) / 2)
     return empate, empate
+
+
+MAX_GOLES_TABLA = 10
+
+
+def scoreline_distribution(
+    p_home: float, p_draw: float, p_away: float, lambda_home: float, lambda_away: float
+) -> np.ndarray:
+    """Matriz P[goles_local, goles_visitante] coherente con las probabilidades 1X2.
+
+    Es la versión analítica de `sample_scoreline`: el modelo decide cuánto pesa
+    cada resultado y, dentro de cada uno, los marcadores se reparten según dos
+    Poisson independientes. Así la suma de la zona "gana el local" es
+    exactamente `p_home`, y el marcador más probable no contradice al modelo.
+    """
+    goles = np.arange(MAX_GOLES_TABLA + 1)
+    fact = np.cumprod(np.r_[1, goles[1:]]).astype(float)
+    poisson_h = np.exp(-lambda_home) * lambda_home**goles / fact
+    poisson_a = np.exp(-lambda_away) * lambda_away**goles / fact
+    conjunta = np.outer(poisson_h, poisson_a)
+
+    i, j = np.indices(conjunta.shape)
+    zonas = {"H": i > j, "D": i == j, "A": i < j}
+    pesos = {"H": p_home, "D": p_draw, "A": p_away}
+
+    tabla = np.zeros_like(conjunta)
+    for clave, zona in zonas.items():
+        masa = conjunta[zona].sum()
+        if masa > 0:
+            tabla[zona] = conjunta[zona] / masa * pesos[clave]
+    return tabla / tabla.sum()
+
+
+def top_scorelines(tabla: np.ndarray, n: int = 5) -> list[tuple[int, int, float]]:
+    """Los n marcadores más probables como (goles_local, goles_visitante, prob)."""
+    orden = np.argsort(tabla, axis=None)[::-1][:n]
+    return [(int(k // tabla.shape[1]), int(k % tabla.shape[1]), float(tabla.flat[k])) for k in orden]

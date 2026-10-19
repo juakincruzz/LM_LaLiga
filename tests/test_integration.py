@@ -34,7 +34,7 @@ async def test_pipeline_completo_sp1(client, temp_db):
     job_id = await _lanzar(client, "project_next_season", "SP1")
     await _esperar(client, job_id, max_wait=120)
 
-    resp = await client.get("/league/SP1")
+    resp = await client.get("/")
     assert resp.status_code == 200
     assert "Temporada finalizada" in resp.text
     assert "Precisión fuera de muestra" in resp.text
@@ -44,7 +44,7 @@ async def test_pipeline_completo_sp1(client, temp_db):
 async def _lanzar(client, job_type: str, league_code: str) -> int:
     resp = await client.post(f"/api/jobs/?job_type={job_type}&league_code={league_code}")
     assert resp.status_code == 200
-    assert "QUEUED" in resp.text
+    assert 'data-status="queued"' in resp.text
     match = re.search(r'id="job-(\d+)"', resp.text)
     assert match is not None
     return int(match.group(1))

@@ -1,31 +1,26 @@
+{% set ESTADOS = {"queued": "En cola", "running": "En marcha", "done": "Hecho", "failed": "Error"} %}
 <div id="job-{{ job.id }}"
      hx-get="/api/jobs/{{ job.id }}/poll"
      hx-trigger="{% if job.status in ['queued', 'running'] %}every 2s{% else %}none{% endif %}"
      hx-swap="outerHTML">
-    <div class="bg-white rounded-lg shadow p-4 mb-4 border-l-4
-        {{ 'border-yellow-400' if job.status == 'queued' else '' }}
-        {{ 'border-blue-500' if job.status == 'running' else '' }}
-        {{ 'border-green-500' if job.status == 'done' else '' }}
-        {{ 'border-red-500' if job.status == 'failed' else '' }}">
-        <div class="flex justify-between items-center mb-2">
-            <span class="font-semibold text-gray-700">{{ job.job_type }} — {{ job.league_code }}</span>
-            <span class="text-xs px-2 py-1 rounded {{ 'bg-yellow-100 text-yellow-800' if job.status == 'queued' else '' }} {{ 'bg-blue-100 text-blue-800' if job.status == 'running' else '' }} {{ 'bg-green-100 text-green-800' if job.status == 'done' else '' }} {{ 'bg-red-100 text-red-800' if job.status == 'failed' else '' }}">
-                {{ job.status.upper() }}
-            </span>
+    <div class="trabajo trabajo--{{ job.status }}" data-status="{{ job.status }}">
+        <div class="trabajo__cab">
+            <span>{{ job.label or job.job_type }}</span>
+            <span class="trabajo__estado">{{ ESTADOS.get(job.status, job.status) }}</span>
         </div>
         {% if job.status in ['queued', 'running'] %}
-        <div class="w-full bg-gray-200 rounded-full h-2.5"
-             role="progressbar" aria-valuenow="{{ job.progress }}" aria-valuemin="0" aria-valuemax="100">
-            <div class="bg-blue-600 h-2.5 rounded-full progress-bar" style="width: {{ job.progress }}%"></div>
+        <div class="progreso progreso--trabajo" role="progressbar" aria-label="Progreso"
+             aria-valuenow="{{ job.progress }}" aria-valuemin="0" aria-valuemax="100">
+            <i style="width: {{ job.progress }}%"></i>
         </div>
-        <p class="text-xs text-gray-500 mt-1">{{ job.progress }}% — {{ job.message or 'En cola' }}</p>
+        <p class="trabajo__msg">{{ job.progress }}% · {{ job.message or 'En cola' }}<span class="cursor" aria-hidden="true">_</span></p>
         {% elif job.status == 'done' %}
-        <p class="text-green-700 text-sm">
-            {{ job.message or 'Completado' }}.
-            <a href="{{ job.result_url }}" class="underline">Ver resultados</a>
+        <p class="trabajo__msg">
+            &gt; {{ job.message or 'Completado' }}.
+            <a href="{{ job.result_url or '/' }}">[ Recargar ]</a>
         </p>
         {% elif job.status == 'failed' %}
-        <p class="text-red-700 text-sm">Error: {{ job.log }}</p>
+        <p class="trabajo__msg">&gt; {{ job.log }}</p>
         {% endif %}
     </div>
 </div>

@@ -5,9 +5,7 @@ Estrategia:
    finalizada (goles a favor/en contra relativos a la media de liga).
 2. Sustituye los equipos descendidos (cola de la tabla) por los ascendidos
    configurados en config/leagues.yaml con ratings típicos de recién ascendido.
-3. Aplica un ajuste por fichajes si hay datos en la tabla `transfers`
-   (neutro si está vacía).
-4. Genera un fixture round-robin completo y ejecuta Monte Carlo con goles
+3. Genera un fixture round-robin completo y ejecuta Monte Carlo con goles
    Poisson para estimar la tabla final y probabilidades.
 """
 import json
@@ -24,11 +22,6 @@ from scripts.data_manager_generic import league_csv_path
 # Ratings típicos de un equipo recién ascendido (relativos a media de liga = 1.0)
 PROMOTED_ATTACK = 0.75
 PROMOTED_DEFENSE = 1.25
-
-# Cada TRANSFER_SENSITIVITY € de balance neto mueve la fuerza un 100%.
-TRANSFER_SENSITIVITY = 500_000_000
-# Tope del ajuste por fichajes (±15%) para no distorsionar demasiado.
-MAX_TRANSFER_SHIFT = 0.15
 
 
 def _load_season_df(league_code: str, season: str) -> pd.DataFrame:
@@ -104,31 +97,6 @@ def _build_ratings(stats: dict, league_avg_team: float, teams_next: list[str]) -
     return ratings
 
 
-async def _transfer_adjustments(db: aiosqlite.Connection, league_code: str) -> dict:
-    """Ajuste por balance de fichajes: (entradas - salidas) en € → multiplicador.
-
-    Devuelve {team_name: multiplier} con 1.0 como neutro.
-    """
-    cursor = await db.execute(
-        """
-        SELECT t.name,
-               SUM(CASE WHEN tr.transfer_type = 'in' THEN tr.market_value_eur ELSE 0 END)
-             - SUM(CASE WHEN tr.transfer_type = 'out' THEN tr.market_value_eur ELSE 0 END) AS net
-        FROM transfers tr
-        JOIN teams t ON t.id = tr.team_id
-        WHERE tr.league_code = ?
-        GROUP BY t.name
-        """,
-        (league_code,),
-    )
-    adjustments = {}
-    for row in await cursor.fetchall():
-        net = row["net"] or 0
-        shift = max(-MAX_TRANSFER_SHIFT, min(MAX_TRANSFER_SHIFT, net / TRANSFER_SENSITIVITY))
-        adjustments[row["name"]] = 1.0 + shift
-    return adjustments
-
-
 def _round_robin(teams: list[str]) -> list[tuple[str, str]]:
     """Cada equipo juega contra todos, ida y vuelta."""
     return [(h, a) for h in teams for a in teams if h != a]
@@ -172,7 +140,8 @@ async def project_next_season(
     promoted = next_cfg.get("promoted_teams", [])
     label = next_cfg.get("label", "próxima temporada")
 
-    df = _load_season_df(league_code, season or get_current_season())
+    season = season or get_current_season()
+    df = _load_season_df(league_code, season)
     stats, league_avg_home, league_avg_away, league_avg_team = _team_stats(df)
 
     # Descendidos: últimos N según nº de ascendidos configurados
@@ -183,13 +152,6 @@ async def project_next_season(
     teams_next = [t for t in order if t not in relegated] + list(promoted)
 
     ratings = _build_ratings(stats, league_avg_team, teams_next)
-
-    # Ajuste por fichajes (neutro si la tabla está vacía)
-    adjustments = await _transfer_adjustments(db, league_code)
-    for team, mult in adjustments.items():
-        if team in ratings:
-            ratings[team]["attack"] *= mult
-            ratings[team]["defense"] /= mult  # más fuerte → menos goles encajados
 
     fixtures = _round_robin(teams_next)
     rng = np.random.default_rng(seed)
@@ -239,8 +201,8 @@ async def project_next_season(
     await db.execute(
         """
         INSERT INTO simulations
-            (model_run_id, league_code, sim_count, standings_json, label, seed, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (model_run_id, league_code, sim_count, standings_json, label, seed, created_at, season)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             model_run_id,
@@ -250,6 +212,7 @@ async def project_next_season(
             f"Proyección {label}",
             seed,
             datetime.now().isoformat(),
+            season,
         ),
     )
     await db.commit()

@@ -63,10 +63,6 @@ class LeaguePredictor:
 
     def train_random_forest(self, X_train, y_train, X_test=None, y_test=None):
         """Entrena modelo Random Forest."""
-        self._is_fitted = False
-    
-    def train_random_forest(self, X_train, y_train, X_test, y_test):
-        """Entrena modelo Random Forest"""
         print("\n🌳 Entrenando Random Forest...")
         model = RandomForestClassifier(
             n_estimators=200, max_depth=10, min_samples_split=5,
@@ -299,6 +295,12 @@ class LeaguePredictor:
             ) from exc
 
         self.model = data['model']
+        # Un modelo cargado se usa para predecir fila a fila (simulación,
+        # próxima jornada). Con n_jobs=-1, XGBoost reparte cada predicción de
+        # una fila entre todos los núcleos y la sobrecarga de hilos domina:
+        # 0,40 ms frente a 0,11 ms con un solo hilo, y la CPU queda libre.
+        if "n_jobs" in self.model.get_params():
+            self.model.set_params(n_jobs=1)
         self.accuracy = data.get('accuracy')
         self.model_name = data.get('model_name', 'Unknown')
         self.league_code = data.get('league_code', self.league_code)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.data_manager_generic import ensure_league_data, league_csv_path
+from scripts.data_manager_generic import calendar_csv_path, ensure_league_data, league_csv_path
 
 # Nombres de football-data.co.uk → nombres internos.
 COLUMN_MAP = {
@@ -83,12 +83,48 @@ def read_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, encoding="utf-8-sig")
 
 
+def merge_calendar(df: pd.DataFrame, calendario: pd.DataFrame) -> pd.DataFrame:
+    """Añade al frame de resultados los partidos del calendario que faltan.
+
+    El CSV de football-data solo trae partidos jugados. Los pendientes salen
+    del calendario, emparejando por (local, visitante) y NO por fecha: un
+    aplazamiento cambia la fecha, pero en una liga a doble vuelta cada par
+    ordenado se juega exactamente una vez por temporada. `Matchday` se rellena
+    para todos los partidos, jugados o no.
+    """
+    calendario = calendario.copy()
+    calendario["Date"] = pd.to_datetime(calendario["Date"], dayfirst=True, errors="coerce")
+    jornada = {(r.HomeTeam, r.AwayTeam): int(r.Matchday) for r in calendario.itertuples(index=False)}
+
+    jugados = set(zip(df["HomeTeam"], df["AwayTeam"]))
+    pendientes = calendario[[par not in jugados for par in zip(calendario["HomeTeam"], calendario["AwayTeam"])]]
+
+    df = df.copy()
+    df["Matchday"] = [jornada.get(par) for par in zip(df["HomeTeam"], df["AwayTeam"])]
+    if not pendientes.empty:
+        df = pd.concat([df, pendientes.assign(Result=pd.NA)], ignore_index=True)
+
+    df["Matchday"] = df["Matchday"].astype("Int64")
+    return df.sort_values("Date", kind="mergesort").reset_index(drop=True)
+
+
 def load_season(league_code: str, season: str, download: bool = True) -> pd.DataFrame:
-    """Carga una temporada normalizada, descargándola si falta."""
+    """Carga una temporada normalizada, descargándola si falta.
+
+    Si hay calendario en disco (lo descarga 'Actualizar datos', ver
+    data_service), se fusiona: el resultado incluye también los partidos
+    pendientes, con goles y Result vacíos.
+    """
     path = ensure_league_data(league_code, season) if download else league_csv_path(league_code, season)
     if not path.exists():
         raise FileNotFoundError(f"No hay datos en {path}. Pulsa 'Actualizar datos' primero.")
-    return normalize_frame(read_csv(path), season=season)
+    df = normalize_frame(read_csv(path), season=season)
+
+    calendario = calendar_csv_path(league_code, season)
+    if calendario.exists():
+        df = merge_calendar(df, pd.read_csv(calendario))
+        df["Season"] = season
+    return df
 
 
 def load_seasons(league_code: str, seasons: list[str], download: bool = True) -> pd.DataFrame:

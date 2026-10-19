@@ -1,0 +1,1160 @@
+/* LM LaLiga — tema retro MS-DOS / VGA.
+ *
+ * Paleta: los 16 colores EGA/VGA de los PC de los 90. Tipografías: "Press
+ * Start 2P" (rótulo, botones, marcadores) y "VT323" (texto, cifras, títulos de
+ * ventana). Ventanas con doble borde y sombra dura, como las interfaces de
+ * texto de la época.
+ *
+ * Press Start 2P encaja las mayúsculas acentuadas (Ó, Í…) en su celda de 8 px y
+ * las aplasta hasta parecer minúsculas: no la uses para texto que pueda llevar
+ * tildes en mayúscula. VT323 sí las dibuja a altura completa.
+ *
+ * Sin framework ni build: este fichero es todo el CSS de la aplicación.
+ */
+
+:root {
+    /* Paleta EGA/VGA */
+    --negro: #000000;
+    --azul: #0000aa;
+    --azul-osc: #000066;
+    --verde: #00aa00;
+    --cian: #00aaaa;
+    --rojo: #aa0000;
+    --gris: #aaaaaa;
+    --gris-osc: #555555;
+    --azul-cl: #5555ff;
+    --verde-cl: #55ff55;
+    --cian-cl: #55ffff;
+    --rojo-cl: #ff5555;
+    --amarillo: #ffff55;
+    --magenta-cl: #ff55ff;
+    --blanco: #ffffff;
+
+    /* Papeles */
+    --fondo: var(--azul-osc);
+    --panel: var(--azul);
+    --texto: var(--blanco);
+    --texto-suave: var(--gris);
+    --borde: var(--gris);
+
+    --f-pixel: "Press Start 2P", ui-monospace, "Courier New", monospace;
+    --f-texto: "VT323", ui-monospace, "Courier New", monospace;
+
+    --sombra: 8px 8px 0 var(--negro);
+    --alto-teclas: 34px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding-bottom: calc(var(--alto-teclas) + 8px);
+    /* Tramado 2×2 sobre azul oscuro, como el escritorio de un programa DOS */
+    background-color: var(--fondo);
+    background-image: repeating-conic-gradient(#00008c 0 25%, transparent 0 50%);
+    background-size: 4px 4px;
+    color: var(--texto);
+    font-family: var(--f-texto);
+    font-size: 22px;
+    line-height: 1.25;
+}
+
+/* Monitor CRT: líneas de barrido y viñeta. Desactivable desde la barra de menú. */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    background:
+        repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px 3px),
+        radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+.sin-crt body::after {
+    display: none;
+}
+
+a {
+    color: var(--cian-cl);
+}
+
+a:hover {
+    color: var(--amarillo);
+}
+
+:focus-visible {
+    outline: 3px dashed var(--amarillo);
+    outline-offset: 3px;
+}
+
+abbr[title] {
+    text-decoration: none;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.saltar {
+    position: absolute;
+    left: 8px;
+    top: -60px;
+    z-index: 200;
+    background: var(--amarillo);
+    color: var(--negro);
+    padding: 6px 10px;
+}
+
+.saltar:focus {
+    top: 8px;
+}
+
+.contenedor {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
+.cursor {
+    animation: parpadeo 1s steps(1) infinite;
+}
+
+@keyframes parpadeo {
+    50% {
+        opacity: 0;
+    }
+}
+
+/* ---- Barra de menú --------------------------------------------------- */
+
+.menu {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 34px;
+    padding: 0 8px;
+    background: var(--gris);
+    color: var(--negro);
+    box-shadow: 0 3px 0 var(--negro);
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.menu__marca {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 10px;
+    background: var(--negro);
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.menu__marca:hover {
+    color: var(--blanco);
+}
+
+.menu__balon {
+    width: 16px;
+    height: 16px;
+}
+
+.menu__item {
+    padding: 2px 10px;
+}
+
+.menu__item u {
+    color: var(--rojo);
+    text-decoration: none;
+}
+
+.menu__hueco {
+    flex: 1;
+}
+
+.menu__boton {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+
+.menu__boton:hover,
+.menu__boton[aria-pressed="false"] {
+    background: var(--negro);
+    color: var(--gris);
+}
+
+.menu__boton:hover {
+    color: var(--cian-cl);
+}
+
+.menu__reloj {
+    padding: 2px 10px;
+    background: var(--cian);
+}
+
+/* ---- Portada ---------------------------------------------------------- */
+
+.portada {
+    text-align: center;
+    margin: 20px 0 36px;
+}
+
+.portada__pre {
+    margin: 0 0 18px;
+    color: var(--cian-cl);
+    font-family: var(--f-pixel);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.portada__titulo {
+    margin: 0;
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: clamp(30px, 8vw, 72px);
+    font-weight: normal;
+    line-height: 1.15;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: 4px 4px 0 var(--rojo), 8px 8px 0 var(--negro);
+}
+
+.portada__titulo .cursor {
+    color: var(--blanco);
+    text-shadow: 4px 4px 0 var(--negro);
+}
+
+.portada__sub {
+    margin: 18px 0 0;
+    font-size: 24px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* ---- Aviso de estado de la temporada ---------------------------------- */
+
+.aviso {
+    --c: var(--gris);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin: 0 0 44px;
+    padding: 10px 14px;
+    background: var(--negro);
+    border: 2px solid var(--c);
+    box-shadow: var(--sombra);
+}
+
+.aviso p {
+    margin: 0;
+    flex: 1 1 280px;
+}
+
+.aviso__chip {
+    padding: 6px 8px;
+    background: var(--c);
+    color: var(--negro);
+    font-family: var(--f-pixel);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.aviso--en_curso { --c: var(--verde-cl); }
+.aviso--finalizada { --c: var(--amarillo); }
+.aviso--pretemporada { --c: var(--cian-cl); }
+
+/* ---- Rejilla ---------------------------------------------------------- */
+
+.rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 48px 36px;
+}
+
+@media (min-width: 960px) {
+    .rejilla {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    }
+}
+
+.columna {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    min-width: 0;
+}
+
+/* ---- Ventanas --------------------------------------------------------- */
+
+.ventana {
+    position: relative;
+    padding: 30px 20px 20px;
+    background: var(--panel);
+    border: 4px double var(--borde);
+    box-shadow: var(--sombra);
+}
+
+.ventana__titulo {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    max-width: calc(100% - 32px);
+    margin: 0;
+    padding: 6px 10px;
+    background: var(--panel);
+    color: var(--amarillo);
+    font-family: var(--f-texto);
+    font-size: 28px;
+    font-weight: normal;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.ventana__titulo::before { content: "[ "; }
+.ventana__titulo::after { content: " ]"; }
+
+.ventana__sub {
+    margin: 0 0 14px;
+    color: var(--cian-cl);
+}
+
+.ventana--error {
+    --panel: var(--rojo);
+    max-width: 640px;
+    margin: 40px auto;
+}
+
+.error__codigo {
+    margin: 4px 0 16px;
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+.nota {
+    margin: 14px 0 0;
+    color: var(--texto-suave);
+    font-size: 20px;
+}
+
+.ventana--error .nota {
+    color: var(--blanco);
+}
+
+.vacio {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    color: var(--texto-suave);
+}
+
+.vacio__icono {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    background: var(--negro);
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 14px;
+}
+
+/* ---- Botones ---------------------------------------------------------- */
+
+.acciones {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.boton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--gris);
+    color: var(--negro);
+    border: 0;
+    font-family: var(--f-texto);
+    font-size: 20px;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    /* Relieve: luz arriba-izquierda, sombra abajo-derecha, y sombra dura fuera */
+    box-shadow:
+        inset -3px -3px 0 var(--gris-osc),
+        inset 3px 3px 0 var(--blanco),
+        5px 5px 0 var(--negro);
+}
+
+.boton:hover {
+    background: var(--cian-cl);
+    color: var(--negro);
+}
+
+.boton:active,
+.boton.pulsado {
+    transform: translate(5px, 5px);
+    box-shadow:
+        inset 3px 3px 0 var(--gris-osc),
+        inset -3px -3px 0 var(--blanco);
+}
+
+.boton:disabled {
+    cursor: not-allowed;
+    background: #808080;
+    color: #2a2a2a;
+    transform: none;
+    box-shadow:
+        inset -3px -3px 0 var(--gris-osc),
+        inset 3px 3px 0 #b8b8b8,
+        5px 5px 0 var(--negro);
+}
+
+.boton__tecla {
+    flex: none;
+    min-width: 30px;
+    padding: 6px 4px;
+    background: var(--negro);
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 12px;
+    text-align: center;
+}
+
+.boton:disabled .boton__tecla {
+    color: var(--gris);
+}
+
+.boton__texto {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.boton__nombre {
+    font-family: var(--f-pixel);
+    font-size: 11px;
+    line-height: 1.4;
+    text-transform: uppercase;
+}
+
+.boton__desc {
+    line-height: 1.05;
+}
+
+.boton--enlace {
+    display: inline-flex;
+    width: auto;
+    font-family: var(--f-pixel);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+/* ---- Trabajos en segundo plano ---------------------------------------- */
+
+.trabajos {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.trabajos:empty {
+    display: none;
+}
+
+.trabajo {
+    --c: var(--gris);
+    padding: 12px 14px;
+    background: var(--negro);
+    border: 2px solid var(--c);
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.6);
+}
+
+.trabajo--queued { --c: var(--amarillo); }
+.trabajo--running { --c: var(--cian-cl); }
+.trabajo--done { --c: var(--verde-cl); }
+.trabajo--failed { --c: var(--rojo-cl); }
+
+.trabajo__cab {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 12px;
+    color: var(--c);
+    font-family: var(--f-pixel);
+    font-size: 10px;
+    line-height: 1.6;
+    text-transform: uppercase;
+}
+
+.trabajo__estado {
+    padding: 2px 6px;
+    background: var(--c);
+    color: var(--negro);
+}
+
+.trabajo__msg {
+    margin: 10px 0 0;
+    color: var(--c);
+    overflow-wrap: anywhere;
+}
+
+.trabajo__msg a {
+    color: var(--blanco);
+}
+
+/* ---- Barras de progreso, segmentadas como en modo texto ------------------ */
+
+.progreso {
+    height: 18px;
+    margin: 0 0 16px;
+    padding: 2px;
+    background: var(--negro);
+    border: 2px solid var(--gris-osc);
+}
+
+.progreso i {
+    display: block;
+    height: 100%;
+    background: repeating-linear-gradient(90deg, var(--verde-cl) 0 8px, transparent 8px 10px);
+    transition: width 0.4s steps(8);
+}
+
+.progreso--trabajo {
+    margin: 12px 0 0;
+}
+
+.progreso--trabajo i {
+    background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 10px);
+}
+
+/* ---- Listas de datos con puntos guía ---------------------------------- */
+
+.datos {
+    margin: 0;
+}
+
+.datos div {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.datos dt {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--cian-cl);
+}
+
+.datos dt::after {
+    content: " ........................................................................";
+    color: var(--gris);
+    opacity: 0.6;
+}
+
+.datos dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Modelo: marcador y barras comparativas --------------------------- */
+
+.marcador {
+    margin: 0 0 20px;
+    padding: 14px 12px;
+    background: var(--negro);
+    border: 2px solid var(--gris-osc);
+    text-align: center;
+}
+
+.marcador__num {
+    display: block;
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 32px;
+    line-height: 1.2;
+    text-shadow: 0 0 8px rgba(255, 255, 85, 0.55);
+}
+
+.marcador__lbl {
+    display: block;
+    margin-top: 10px;
+    color: var(--texto-suave);
+    font-size: 20px;
+}
+
+.barras {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.barras li {
+    --c: var(--gris);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 10px;
+}
+
+.barras li.es-modelo {
+    --c: var(--amarillo);
+    color: var(--amarillo);
+}
+
+.barras .valor {
+    font-variant-numeric: tabular-nums;
+}
+
+.barras .barra {
+    grid-column: 1 / -1;
+    height: 14px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.barras .barra i {
+    display: block;
+    height: 100%;
+    background: repeating-linear-gradient(90deg, var(--c) 0 6px, transparent 6px 8px);
+}
+
+/* ---- Clasificación ---------------------------------------------------- */
+
+.tabla-scroll {
+    overflow-x: auto;
+}
+
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.tabla thead th {
+    padding: 4px 8px;
+    background: var(--cian);
+    color: var(--negro);
+    font-weight: normal;
+    letter-spacing: 0.06em;
+    text-align: right;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.tabla td,
+.tabla tbody th {
+    padding: 3px 8px;
+    border-bottom: 1px dotted rgba(170, 170, 170, 0.35);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla tbody th,
+.tabla thead .equipo {
+    text-align: left;
+}
+
+.tabla tbody th {
+    font-weight: normal;
+}
+
+.tabla tbody tr:hover {
+    background: var(--azul-cl);
+}
+
+.tabla .pos {
+    width: 2.6em;
+    text-align: center;
+}
+
+.zona-champions .pos { background: var(--cian-cl); color: var(--negro); }
+.zona-europa .pos { background: var(--verde-cl); color: var(--negro); }
+.zona-descenso .pos { background: var(--rojo-cl); color: var(--negro); }
+
+.tabla .pts {
+    color: var(--amarillo);
+}
+
+.prob .mini {
+    display: inline-block;
+    width: 44px;
+    height: 10px;
+    margin-right: 8px;
+    vertical-align: 1px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.prob .mini i {
+    display: block;
+    height: 100%;
+    background: var(--amarillo);
+}
+
+.prob--descenso .mini i {
+    background: var(--rojo-cl);
+}
+
+.prob.cero {
+    color: var(--texto-suave);
+}
+
+.leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--texto-suave);
+    font-size: 20px;
+}
+
+.leyenda i {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    vertical-align: -1px;
+}
+
+.leyenda__champions { background: var(--cian-cl); }
+.leyenda__europa { background: var(--verde-cl); }
+.leyenda__descenso { background: var(--rojo-cl); }
+
+/* ---- Selectores ---------------------------------------------------------- */
+
+.selector {
+    padding: 4px 8px;
+    background: var(--negro);
+    color: var(--amarillo);
+    border: 2px solid var(--gris);
+    font-family: var(--f-texto);
+    font-size: 22px;
+    cursor: pointer;
+}
+
+.selector:hover {
+    border-color: var(--cian-cl);
+}
+
+.boton--mini {
+    width: auto;
+    padding: 4px 10px;
+    font-family: var(--f-pixel);
+    font-size: 10px;
+    text-transform: uppercase;
+    box-shadow:
+        inset -2px -2px 0 var(--gris-osc),
+        inset 2px 2px 0 var(--blanco),
+        3px 3px 0 var(--negro);
+}
+
+.boton--mini:active,
+.boton--mini.pulsado {
+    transform: translate(3px, 3px);
+}
+
+/* ---- Barra 1X2: local / empate / visitante -------------------------------- */
+
+.tri {
+    display: flex;
+    height: 14px;
+    background: var(--negro);
+    border: 2px solid var(--negro);
+}
+
+.tri i {
+    display: block;
+    height: 100%;
+}
+
+.tri__1 { background: var(--cian-cl); }
+.tri__x { background: var(--gris); }
+.tri__2 { background: var(--magenta-cl); }
+
+.tri--grande {
+    height: 26px;
+    margin: 18px 0 6px;
+}
+
+.clave {
+    display: inline-block;
+    min-width: 1.2em;
+    padding: 0 3px;
+    color: var(--negro);
+    text-align: center;
+}
+
+.clave--1 { background: var(--cian-cl); }
+.clave--x { background: var(--gris); }
+.clave--2 { background: var(--magenta-cl); }
+
+/* ---- Próxima jornada -------------------------------------------------------- */
+
+.jornada__cab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin-bottom: 14px;
+}
+
+.jornada__cab .nota {
+    margin: 0;
+}
+
+.partidos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Fila 1: fecha | local | marcador | visitante | botón
+   Fila 2: barra 1X2 bajo los equipos; fila 3: porcentajes (1 bajo el local,
+   2 bajo el visitante). Los nombres tienen así toda la anchura. */
+.partido {
+    display: grid;
+    grid-template-columns: 3.2em minmax(0, 1fr) 3.6em minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 8px 0;
+    border-bottom: 1px dotted rgba(170, 170, 170, 0.35);
+}
+
+.partido .tri {
+    grid-column: 2 / 5;
+    grid-row: 2;
+}
+
+.partido .partido__probs {
+    grid-column: 2 / 5;
+    grid-row: 3;
+}
+
+.partido .boton--mini {
+    grid-column: 5;
+    grid-row: 1;
+}
+
+.partido__fecha {
+    color: var(--texto-suave);
+}
+
+.partido__local {
+    text-align: right;
+}
+
+.partido__local,
+.partido__visitante {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.favorito {
+    color: var(--amarillo);
+}
+
+.partido__marcador {
+    padding: 2px 0;
+    background: var(--negro);
+    color: var(--amarillo);
+    font-family: var(--f-pixel);
+    font-size: 12px;
+    text-align: center;
+}
+
+.partido__marcador--real {
+    color: var(--verde-cl);
+}
+
+.partido__probs {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    color: var(--texto-suave);
+    font-size: 19px;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 520px) {
+    .partido {
+        grid-template-columns: 2.6em minmax(0, 1fr) 3.4em minmax(0, 1fr);
+    }
+
+    .partido .boton--mini {
+        grid-column: 1;
+        grid-row: 2 / 4;
+        align-self: start;
+        padding: 4px 6px;
+    }
+}
+
+/* ---- Cara a cara ------------------------------------------------------------- */
+
+.duelo__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.duelo__form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 180px;
+}
+
+.duelo__lbl {
+    color: var(--cian-cl);
+}
+
+.duelo__vs {
+    padding-bottom: 8px;
+    color: var(--rojo-cl);
+    font-family: var(--f-pixel);
+    font-size: 14px;
+}
+
+.duelo__marcador {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 16px;
+}
+
+.duelo__marcador .marcador__lbl {
+    grid-column: 1 / -1;
+}
+
+.duelo__equipo {
+    font-family: var(--f-pixel);
+    font-size: 12px;
+    line-height: 1.5;
+    /* Cortar solo entre palabras: «BARCEL / ONA» no se lee */
+    overflow-wrap: normal;
+    text-transform: uppercase;
+}
+
+@media (max-width: 520px) {
+    .duelo__equipo {
+        font-size: 9px;
+    }
+
+    .duelo__marcador {
+        gap: 6px 8px;
+        padding: 12px 8px;
+    }
+}
+
+.duelo__equipo:first-child {
+    text-align: right;
+}
+
+.duelo__equipo:nth-child(3) {
+    text-align: left;
+}
+
+.duelo__pronostico {
+    margin: 0;
+    text-align: center;
+}
+
+.duelo__pronostico strong {
+    color: var(--amarillo);
+    font-weight: normal;
+}
+
+.duelo__probs {
+    margin-bottom: 22px;
+    color: var(--texto);
+}
+
+.duelo__rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px 32px;
+}
+
+.duelo__h {
+    margin: 0 0 10px;
+    color: var(--cian-cl);
+    font-size: 22px;
+    font-weight: normal;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.comparativa {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.comparativa th,
+.comparativa td {
+    padding: 3px 6px;
+    border-bottom: 1px dotted rgba(170, 170, 170, 0.35);
+    font-weight: normal;
+}
+
+.comparativa thead th {
+    color: var(--amarillo);
+}
+
+.comparativa tbody th {
+    color: var(--texto-suave);
+    text-align: center;
+}
+
+.comparativa td:first-child,
+.comparativa thead th:first-child {
+    text-align: left;
+}
+
+.comparativa td:last-child,
+.comparativa thead th:last-child {
+    text-align: right;
+}
+
+.forma {
+    display: inline-block;
+    width: 1.1em;
+    margin-right: 2px;
+    color: var(--negro);
+    text-align: center;
+}
+
+.forma--V { background: var(--verde-cl); }
+.forma--E { background: var(--gris); }
+.forma--D { background: var(--rojo-cl); }
+
+/* ---- Pie y barra de teclas (estilo Norton Commander) ------------------- */
+
+.pie {
+    padding-top: 40px;
+    color: var(--texto-suave);
+    font-size: 20px;
+    text-align: center;
+}
+
+.teclas {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    display: flex;
+    height: var(--alto-teclas);
+    background: var(--negro);
+    overflow-x: auto;
+}
+
+.teclas button {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: stretch;
+    padding: 0 4px 0 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.teclas b {
+    display: grid;
+    place-items: center;
+    padding: 0 6px;
+    color: var(--blanco);
+    font-weight: normal;
+}
+
+.teclas span {
+    flex: 1;
+    display: grid;
+    place-items: center start;
+    padding: 0 10px;
+    background: var(--cian);
+    color: var(--negro);
+}
+
+.teclas button:hover span {
+    background: var(--cian-cl);
+}
+
+.teclas button:disabled {
+    cursor: not-allowed;
+}
+
+.teclas button:disabled span {
+    background: var(--gris-osc);
+    color: var(--gris);
+}
+
+@media (max-width: 520px) {
+    body {
+        font-size: 20px;
+    }
+
+    .ventana {
+        padding: 28px 14px 16px;
+    }
+
+    .ventana__titulo {
+        font-size: 24px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cursor {
+        animation: none;
+    }
+
+    .progreso i {
+        transition: none;
+    }
+}

@@ -1,0 +1,58 @@
+{% if error %}
+<p class="vacio"><span class="vacio__icono" aria-hidden="true">!</span>{{ error }}</p>
+{% elif not jornada.partidos %}
+<p class="vacio">
+    <span class="vacio__icono" aria-hidden="true">?</span>
+    No quedan partidos pendientes en el calendario. Pulsa «Actualizar datos» para traer el calendario.
+</p>
+{% else %}
+<div class="jornada__cab">
+    <label for="sel-jornada" class="sr-only">Jornada</label>
+    <select id="sel-jornada" name="n" class="selector"
+            hx-get="/prediccion/jornada" hx-target="#jornada" hx-swap="innerHTML">
+        {% for n in jornada.jornadas %}
+        <option value="{{ n }}" {% if n == jornada.numero %}selected{% endif %}>Jornada {{ n }}</option>
+        {% endfor %}
+    </select>
+    {% if jornada.datos_hasta %}
+    <span class="nota">Con resultados hasta el {{ jornada.datos_hasta }}</span>
+    {% endif %}
+</div>
+
+<ul class="partidos">
+    {% for p in jornada.partidos %}
+    {% set pr = p.prediccion %}
+    <li class="partido">
+        <span class="partido__fecha">{{ p.fecha[8:10] }}/{{ p.fecha[5:7] }}</span>
+        <span class="partido__local{{ ' favorito' if pr and pr.favorito == '1' }}">{{ p.local|equipo }}</span>
+        {% if p.resultado %}
+        <span class="partido__marcador partido__marcador--real" title="Resultado real">{{ p.resultado }}</span>
+        {% else %}
+        <span class="partido__marcador" title="Marcador más probable según el modelo">{{ pr.marcadores[0].local }}-{{ pr.marcadores[0].visitante }}</span>
+        {% endif %}
+        <span class="partido__visitante{{ ' favorito' if pr and pr.favorito == '2' }}">{{ p.visitante|equipo }}</span>
+        {% if pr %}
+        <div class="tri" role="img"
+             aria-label="Local {{ '%.0f'|format(pr.p1 * 100) }} %, empate {{ '%.0f'|format(pr.px * 100) }} %, visitante {{ '%.0f'|format(pr.p2 * 100) }} %">
+            <i class="tri__1" style="width: {{ '%.1f'|format(pr.p1 * 100) }}%"></i><i class="tri__x" style="width: {{ '%.1f'|format(pr.px * 100) }}%"></i><i class="tri__2" style="width: {{ '%.1f'|format(pr.p2 * 100) }}%"></i>
+        </div>
+        <span class="partido__probs" aria-hidden="true">
+            <span>1 {{ '%.0f'|format(pr.p1 * 100) }}%</span>
+            <span>X {{ '%.0f'|format(pr.px * 100) }}%</span>
+            <span>2 {{ '%.0f'|format(pr.p2 * 100) }}%</span>
+        </span>
+        <button type="button" class="boton boton--mini"
+                hx-get="/prediccion/partido?{{ {'local': p.local, 'visitante': p.visitante, 'fecha': p.fecha}|urlencode }}"
+                hx-target="#prediccion" hx-swap="innerHTML show:#ventana-duelo:top"
+                aria-label="Ver detalle de {{ p.local|equipo }} contra {{ p.visitante|equipo }}">Ver</button>
+        {% else %}
+        <span class="partido__probs nota">Jugado</span>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+<p class="nota">
+    Marcador = el más probable según el modelo. Barra: <span class="clave clave--1">1</span> local,
+    <span class="clave clave--x">X</span> empate, <span class="clave clave--2">2</span> visitante.
+</p>
+{% endif %}

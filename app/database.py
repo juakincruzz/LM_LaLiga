@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS teams (
     league_code TEXT NOT NULL,
     name TEXT NOT NULL,
     alias TEXT,
-    tm_club_id TEXT,
     FOREIGN KEY (league_code) REFERENCES leagues(code)
 );
 
@@ -69,22 +68,8 @@ CREATE TABLE IF NOT EXISTS simulations (
     sim_count INTEGER,
     standings_json TEXT,
     label TEXT DEFAULT 'Temporada actual',
+    season TEXT,
     FOREIGN KEY (model_run_id) REFERENCES model_runs(id)
-);
-
-CREATE TABLE IF NOT EXISTS transfers (
-    id INTEGER PRIMARY KEY,
-    league_code TEXT NOT NULL,
-    team_id INTEGER NOT NULL,
-    player_name TEXT,
-    position TEXT,
-    transfer_type TEXT,
-    market_value_eur REAL,
-    from_club TEXT,
-    to_club TEXT,
-    date TEXT,
-    FOREIGN KEY (league_code) REFERENCES leagues(code),
-    FOREIGN KEY (team_id) REFERENCES teams(id)
 );
 
 CREATE TABLE IF NOT EXISTS job_status (
@@ -106,7 +91,6 @@ CREATE TABLE IF NOT EXISTS job_status (
 # añadir aquí toda columna nueva, además de al SCHEMA de arriba.
 MIGRATIONS = [
     "ALTER TABLE simulations ADD COLUMN label TEXT DEFAULT 'Temporada actual'",
-    "ALTER TABLE teams ADD COLUMN tm_club_id TEXT",
     # Sin league_code, la consulta de la página de liga tenía que adivinar a qué
     # liga pertenecía cada simulación, y mezclaba unas con otras.
     "ALTER TABLE simulations ADD COLUMN league_code TEXT",
@@ -128,6 +112,13 @@ MIGRATIONS = [
     "ALTER TABLE model_runs ADD COLUMN brier REAL",
     # Mensaje de progreso legible, separado de `log` (que lleva errores)
     "ALTER TABLE job_status ADD COLUMN message TEXT",
+    # El análisis de fichajes (Transfermarkt) se eliminó: fuera su tabla.
+    # teams.tm_club_id se queda en las BD antiguas; SQLite no borra columnas
+    # con facilidad y no molesta.
+    "DROP TABLE IF EXISTS transfers",
+    # Temporada de la que parte cada simulación: al cambiar de temporada, la
+    # portada mostraba la proyección hecha desde la anterior como si fuera actual.
+    "ALTER TABLE simulations ADD COLUMN season TEXT",
 ]
 
 # Los índices UNIQUE son los que hacen idempotente la ingesta (ON CONFLICT).

@@ -15,6 +15,6 @@ async def test_init_db_creates_tables(temp_db):
 
     expected = {
         "leagues", "teams", "matches", "model_runs",
-        "predictions", "simulations", "transfers", "job_status",
+        "predictions", "simulations", "job_status",
     }
     assert expected.issubset(tables)

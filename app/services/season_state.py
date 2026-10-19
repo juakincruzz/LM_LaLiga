@@ -9,6 +9,8 @@ from enum import Enum
 
 import aiosqlite
 
+from app.config import get_current_season
+
 
 class EstadoTemporada(str, Enum):
     SIN_DATOS = "sin_datos"
@@ -48,7 +50,13 @@ class ResumenTemporada:
         return self.estado in (EstadoTemporada.FINALIZADA, EstadoTemporada.SIN_DATOS)
 
 
-async def get_season_state(db: aiosqlite.Connection, league_code: str) -> ResumenTemporada:
+async def get_season_state(
+    db: aiosqlite.Connection, league_code: str, season: str | None = None
+) -> ResumenTemporada:
+    """Solo la temporada indicada (por defecto, la actual): `matches` guarda
+    todas las que se hayan ingerido, y sumarlas daba 760 partidos en una liga
+    de 380."""
+    season = season or get_current_season()
     cursor = await db.execute(
         """
         SELECT COUNT(*) AS total,
@@ -56,9 +64,9 @@ async def get_season_state(db: aiosqlite.Connection, league_code: str) -> Resume
                MAX(CASE WHEN result IS NOT NULL THEN date END) AS ultimo,
                MAX(season) AS season
           FROM matches
-         WHERE league_code = ?
+         WHERE league_code = ? AND season = ?
         """,
-        (league_code,),
+        (league_code, season),
     )
     row = await cursor.fetchone()
 

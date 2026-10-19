@@ -7,11 +7,11 @@ Esa es la regla que hay que respetar al tocar este fichero — en el momento en
 que tenga su propia clasificación o su propio cálculo de features, vuelven las
 copias divergentes que la fase 3 se encargó de eliminar.
 
-    python manage.py update   --league SP1
-    python manage.py train    --league SP1
-    python manage.py simulate --league SP1 --sims 500 --seed 42
-    python manage.py project  --league SP1
-    python manage.py evaluate --league SP1
+    python manage.py update
+    python manage.py train
+    python manage.py simulate --sims 500 --seed 42
+    python manage.py project
+    python manage.py evaluate
 """
 import argparse
 import asyncio
@@ -19,6 +19,7 @@ import json
 
 import aiosqlite
 
+from app.config import LEAGUE_CODE
 from app.database import DB_PATH, init_db
 from core.errors import LMLaLigaError
 
@@ -99,8 +100,9 @@ def parse_args() -> argparse.Namespace:
     sub = parser.add_subparsers(dest="command", required=True)
 
     for nombre in ("update", "train", "simulate", "project", "evaluate"):
-        p = sub.add_parser(nombre)
-        p.add_argument("--league", required=True, help="Código de liga (SP1, E0, D1, I1, F1)")
+        # Solo hay una liga: `league` sigue existiendo en args porque los
+        # servicios lo reciben, pero ya no es un parámetro de la línea de comandos.
+        sub.add_parser(nombre).set_defaults(league=LEAGUE_CODE)
 
     sub.choices["update"].add_argument("--season", default=None, help="Por defecto, la temporada actual")
     for nombre in ("simulate", "project"):

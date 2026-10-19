@@ -58,21 +58,12 @@ def feature_vector(state: LeagueState, home_team: str, away_team: str, current_d
     return np.array([[f[col] for col in FEATURE_COLS]], dtype=np.float32)
 
 
-def build_training_matrix(df: pd.DataFrame, reset_per_season: bool = True):
-    """Recorre los partidos en orden y genera (X, y, df).
-
-    Cada fila se calcula ANTES de aplicar su propio partido al estado: ahí está
-    la garantía de que no hay data leakage.
+def _recorrer(df: pd.DataFrame, state: LeagueState, reset_per_season: bool):
+    """Recorre partidos jugados en orden, cediendo (fila, estado) ANTES de
+    aplicar cada partido al estado. Es el único sitio que decide cuándo se
+    cambia de temporada, para que entrenar y predecir vean el mismo estado.
     """
-    # mergesort = estable. Con quicksort (el defecto), dos ordenaciones del
-    # mismo dataframe barajan de forma distinta los partidos de una misma
-    # fecha, y las features de esos partidos salían diferentes en cada pasada.
-    df = df.copy().sort_values("Date", kind="mergesort").reset_index(drop=True)
-
-    state = LeagueState()
     temporada_actual = None
-    filas = []
-
     for row in df.itertuples(index=False):
         if reset_per_season:
             temporada = getattr(row, "Season", None)
@@ -80,7 +71,7 @@ def build_training_matrix(df: pd.DataFrame, reset_per_season: bool = True):
                 state.start_new_season()
             temporada_actual = temporada
 
-        filas.append(state.features(row.HomeTeam, row.AwayTeam, row.Date))
+        yield row, state
         state.apply_match(
             row.HomeTeam,
             row.AwayTeam,
@@ -89,6 +80,41 @@ def build_training_matrix(df: pd.DataFrame, reset_per_season: bool = True):
             row.Result,
             row.Date,
         )
+
+
+def _ordenar(df: pd.DataFrame) -> pd.DataFrame:
+    # mergesort = estable. Con quicksort (el defecto), dos ordenaciones del
+    # mismo dataframe barajan de forma distinta los partidos de una misma
+    # fecha, y las features de esos partidos salían diferentes en cada pasada.
+    return df.copy().sort_values("Date", kind="mergesort").reset_index(drop=True)
+
+
+def build_state(df: pd.DataFrame, reset_per_season: bool = True) -> LeagueState:
+    """Estado tras aplicar todos los partidos JUGADOS de `df`, con la misma
+    semántica de cambio de temporada que `build_training_matrix`.
+
+    Es lo que hay que usar para predecir o simular: un estado construido solo
+    con la temporada actual no tiene el historial H2H que el modelo sí vio al
+    entrenar (el simulador llegó a ver 0 enfrentamientos previos donde el
+    entrenamiento veía ~2,9).
+    """
+    state = LeagueState()
+    for _ in _recorrer(_ordenar(df), state, reset_per_season):
+        pass
+    return state
+
+
+def build_training_matrix(df: pd.DataFrame, reset_per_season: bool = True):
+    """Recorre los partidos en orden y genera (X, y, df).
+
+    Cada fila se calcula ANTES de aplicar su propio partido al estado: ahí está
+    la garantía de que no hay data leakage.
+    """
+    df = _ordenar(df)
+    filas = [
+        state.features(row.HomeTeam, row.AwayTeam, row.Date)
+        for row, state in _recorrer(df, LeagueState(), reset_per_season)
+    ]
 
     X = pd.DataFrame(filas, columns=FEATURE_COLS).fillna(0)
     y = df["Result"].map(TARGET_MAP).rename("Target")

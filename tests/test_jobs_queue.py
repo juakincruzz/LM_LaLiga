@@ -1,7 +1,7 @@
 """Concurrencia acotada de los trabajos en segundo plano.
 
 Antes cada botón lanzaba una BackgroundTask que arrancaba al instante: nada
-impedía pulsar los cinco a la vez y tener cinco XGBoost (n_jobs=-1) y cinco
+impedía pulsar todos a la vez y tener varios XGBoost (n_jobs=-1) y varios
 escritores SQLite compitiendo. `_job_lock` los serializa.
 
 Nota: con `httpx.ASGITransport`, `await client.post(...)` no vuelve hasta que
@@ -42,12 +42,12 @@ async def test_el_lock_impide_que_dos_jobs_corran_a_la_vez(temp_db, monkeypatch)
     async with aiosqlite.connect(temp_db) as db:
         db.row_factory = aiosqlite.Row
         job1 = await _crear_job_status(db, "SP1")
-        job2 = await _crear_job_status(db, "E0")
+        job2 = await _crear_job_status(db, "SP1")
 
     # Lanzados de verdad a la vez: si no hubiera lock, sus 0.05s se solaparían.
     await asyncio.gather(
         jobs_module._run_job(job1, "update_data", "SP1"),
-        jobs_module._run_job(job2, "update_data", "E0"),
+        jobs_module._run_job(job2, "update_data", "SP1"),
     )
 
     assert len(intervalos) == 2
@@ -75,12 +75,12 @@ async def test_segundo_job_muestra_que_espera_turno(temp_db, monkeypatch):
     async with aiosqlite.connect(temp_db) as db:
         db.row_factory = aiosqlite.Row
         job1 = await _crear_job_status(db, "SP1")
-        job2 = await _crear_job_status(db, "E0")
+        job2 = await _crear_job_status(db, "SP1")
 
     tarea1 = asyncio.create_task(jobs_module._run_job(job1, "update_data", "SP1"))
     await asyncio.sleep(0.02)  # deja que job1 entre en el lock y quede bloqueado
 
-    tarea2 = asyncio.create_task(jobs_module._run_job(job2, "update_data", "E0"))
+    tarea2 = asyncio.create_task(jobs_module._run_job(job2, "update_data", "SP1"))
     await asyncio.sleep(0.02)  # job2 debería estar esperando el lock, no ejecutando
 
     async with aiosqlite.connect(temp_db) as db:

@@ -1,84 +1,27 @@
-# Valores compartidos por las 5 ligas. current_season es la única fuente de
-# verdad de "qué temporada es la actual" — antes "2526" estaba escrito a mano
-# en 9 sitios del código. history_depth: temporadas anteriores que se suman a
-# la actual para entrenar (ver app/config.py::get_training_seasons).
+# El proyecto se centra solo en La Liga. La estructura por código de liga
+# (SP1) se conserva porque es la clave de la BD, del directorio de datos y del
+# nombre del modelo; app/config.py::LEAGUE_CODE es la constante que la usa.
+#
+# current_season es la única fuente de verdad de "qué temporada es la actual".
+# history_depth: temporadas anteriores que se suman a la actual para entrenar
+# (ver app/config.py::get_training_seasons).
 defaults:
-  current_season: "2526"
+  current_season: "2627"
   history_depth: 5
 
 SP1:
   name: "La Liga"
-  data_code: "SP1"
-  country: "Spain"
+  data_code: "SP1"          # resultados: football-data.co.uk/mmz4281/{temporada}/SP1.csv
+  calendar_code: "es.1"     # calendario: github.com/openfootball/football.json/{2026-27}/es.1.json
+  country: "España"
   teams: 20
-  transfermarkt_league_id: "ES1"
   next_season:
-    code: "2627"
-    label: "26/27"
-    tm_season_id: "2026"
+    code: "2728"
+    label: "27/28"
     # Edita estos nombres cuando conozcas los ascendidos reales.
-    # Deben ser 3 para La Liga (20 equipos, 3 descensos).
+    # Deben ser 3 para La Liga (20 equipos, 3 descensos). Los nombres tienen
+    # que ser los de football-data.co.uk (ver core/equipos.py).
     promoted_teams:
       - "Ascendido 1"
       - "Ascendido 2"
       - "Ascendido 3"
-
-E0:
-  name: "Premier League"
-  data_code: "E0"
-  country: "England"
-  teams: 20
-  transfermarkt_league_id: "GB1"
-  next_season:
-    code: "2627"
-    label: "26/27"
-    tm_season_id: "2026"
-    promoted_teams:
-      - "Promoted 1"
-      - "Promoted 2"
-      - "Promoted 3"
-
-D1:
-  name: "Bundesliga"
-  data_code: "D1"
-  country: "Germany"
-  teams: 18
-  transfermarkt_league_id: "L1"
-  next_season:
-    code: "2627"
-    label: "26/27"
-    tm_season_id: "2026"
-    # Bundesliga: 18 equipos, 2 descensos directos
-    promoted_teams:
-      - "Aufgestiegen 1"
-      - "Aufgestiegen 2"
-
-I1:
-  name: "Serie A"
-  data_code: "I1"
-  country: "Italy"
-  teams: 20
-  transfermarkt_league_id: "IT1"
-  next_season:
-    code: "2627"
-    label: "26/27"
-    tm_season_id: "2026"
-    promoted_teams:
-      - "Promossa 1"
-      - "Promossa 2"
-      - "Promossa 3"
-
-F1:
-  name: "Ligue 1"
-  data_code: "F1"
-  country: "France"
-  teams: 18
-  transfermarkt_league_id: "FR1"
-  next_season:
-    code: "2627"
-    label: "26/27"
-    tm_season_id: "2026"
-    # Ligue 1: 18 equipos, 2 descensos directos
-    promoted_teams:
-      - "Promu 1"
-      - "Promu 2"

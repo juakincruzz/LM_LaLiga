@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import dashboard, jobs, leagues
+from app.routers import jobs, liga, prediccion
+from app.templating import templates
 from core.errors import UnknownLeagueError
 
 
@@ -15,23 +15,18 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="LM_LaLiga Dashboard", lifespan=lifespan)
+app = FastAPI(title="LM LaLiga", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-app.include_router(dashboard.router)
+app.include_router(liga.router)
 app.include_router(jobs.router)
-app.include_router(leagues.router)
+app.include_router(prediccion.router)
 
 
 @app.exception_handler(UnknownLeagueError)
-async def unknown_league_handler(request: Request, exc: UnknownLeagueError) -> HTMLResponse:
+async def unknown_league_handler(request: Request, exc: UnknownLeagueError):
     """Una liga inexistente es un 404, no un 500 con traza en consola."""
-    return HTMLResponse(
-        status_code=404,
-        content=(
-            "<h1>404 &mdash; Liga no encontrada</h1>"
-            f"<p>{exc}</p>"
-            '<p><a href="/">Volver al Dashboard</a></p>'
-        ),
+    return templates.TemplateResponse(
+        request, "404.html", {"mensaje": str(exc)}, status_code=404
     )

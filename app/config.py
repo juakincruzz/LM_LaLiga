@@ -13,13 +13,18 @@ with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
 DEFAULTS: Dict[str, Any] = _RAW_CONFIG.pop("defaults", {})
 LEAGUE_CONFIG: Dict[str, Any] = _RAW_CONFIG
 
+# La única liga del proyecto. Sigue siendo un código de texto porque es la
+# clave foránea de todas las tablas, el directorio de data/raw/ y el nombre del
+# .pkl; centralizarlo aquí evita escribir "SP1" a mano por el código.
+LEAGUE_CODE = "SP1"
+
 # Temporada 2020-21: estadios vacíos por la pandemia distorsionaron la ventaja
 # de campo (una de las 35 features), así que se excluye del entrenamiento
 # aunque caiga dentro de la profundidad histórica configurada.
 EXCLUDED_SEASONS = {"2021"}
 
 
-def get_league_config(league_code: str) -> Dict[str, Any]:
+def get_league_config(league_code: str = LEAGUE_CODE) -> Dict[str, Any]:
     if league_code not in LEAGUE_CONFIG:
         raise UnknownLeagueError(f"Liga desconocida: {league_code}")
     return LEAGUE_CONFIG[league_code]
@@ -27,6 +32,16 @@ def get_league_config(league_code: str) -> Dict[str, Any]:
 
 def list_leagues() -> list:
     return [{"code": code, **cfg} for code, cfg in LEAGUE_CONFIG.items()]
+
+
+def season_label(code: str) -> str:
+    """'2526' -> '25/26', para mostrar en la interfaz."""
+    return f"{code[:2]}/{code[2:]}"
+
+
+def season_long(code: str) -> str:
+    """'2627' -> '2026-27', el formato de las carpetas de openfootball."""
+    return f"20{code[:2]}-{code[2:]}"
 
 
 def get_current_season() -> str:
@@ -49,9 +64,8 @@ def get_training_seasons(league_code: str | None = None) -> list[str]:
     """Temporadas a usar para entrenar, de la más antigua a la actual.
 
     `history_depth` temporadas anteriores + la actual, salvo las excluidas
-    (ver EXCLUDED_SEASONS). `league_code` no se usa hoy — todas las ligas
-    comparten la misma profundidad — pero se acepta para no tener que tocar
-    la firma el día que una liga necesite una distinta.
+    (ver EXCLUDED_SEASONS). `league_code` no se usa: se acepta para no
+    cambiar la firma que usan los servicios.
     """
     depth = DEFAULTS.get("history_depth", 5)
     seasons = []

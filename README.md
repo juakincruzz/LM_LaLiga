@@ -1,21 +1,29 @@
-# LM_LaLiga — Dashboard de predicción para 5 ligas europeas
+# LM_LaLiga — Predicción y simulación de La Liga
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![FastAPI](https://img.shields.io/badge/Web-FastAPI-009688)
 ![XGBoost](https://img.shields.io/badge/ML-XGBoost-red)
 
-Dashboard web que descarga resultados de fútbol, entrena un modelo de resultados de
-partido y simula el resto de la temporada (o proyecta la siguiente) para **5 ligas
-europeas**: La Liga, Premier League, Bundesliga, Serie A y Ligue 1.
+Aplicación web con estética retro MS-DOS/VGA que descarga los resultados de **La Liga**,
+entrena un modelo de resultados de partido y simula el resto de la temporada (o proyecta
+la siguiente). El proyecto se centra solo en la liga española.
 
 ---
 
-## Qué hace, en una frase por liga
+## Qué hace
 
-Por cada liga puedes, desde el navegador:
+La portada muestra, para quien solo quiere consultar:
 
-- **Actualizar datos** — descarga la temporada en curso de football-data.co.uk y la
-  vuelca en SQLite (equipos y partidos).
+- **Próxima jornada** — cada partido con las probabilidades de 1/X/2 y el marcador más
+  probable según el modelo.
+- **Cara a cara** — elige dos equipos y verás el pronóstico, los 5 marcadores más
+  probables, los goles esperados, la forma reciente y los precedentes.
+- **Clasificación** simulada con probabilidades de título y descenso.
+
+Y las acciones para mantenerla al día (cada una con un atajo de teclado, 1–4):
+
+- **Actualizar datos** — descarga los resultados (football-data.co.uk) y el calendario
+  (openfootball) de la temporada en curso y los vuelca en SQLite.
 - **Entrenar modelo** — entrena un XGBoost con 5 temporadas de historia y reporta su
   precisión **fuera de muestra**, junto a tres baselines para poder interpretarla.
 - **Simular temporada** — Monte Carlo de los partidos que quedan por jugar, usando el
@@ -23,9 +31,6 @@ Por cada liga puedes, desde el navegador:
 - **Proyectar la próxima temporada** — fuera de temporada: ratings de ataque/defensa a
   partir de la temporada acabada, ascendidos configurados, Monte Carlo con goles
   Poisson. No usa el modelo de ML (no hay partidos que predecir todavía).
-- **Analizar fichajes** *(opcional)* — altas/bajas vía una instancia local de
-  [Transfermarkt API](https://github.com/felipeall/transfermarkt-api), para ajustar la
-  proyección de la próxima temporada.
 
 ## Sobre la precisión del modelo — léase antes de esperar un 90 %
 
@@ -47,11 +52,11 @@ python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
-python -m app.seed                 # crea el esquema y siembra las 5 ligas
+python -m app.seed                 # crea el esquema y registra La Liga
 python run_web.py                  # http://127.0.0.1:8000
 ```
 
-Desde ahí: entra en una liga, pulsa **Actualizar datos** y luego **Entrenar modelo**.
+Desde ahí: pulsa **Actualizar datos** (tecla 1) y luego **Entrenar modelo** (tecla 2).
 Ambos se ejecutan en segundo plano y la página se actualiza sola mientras corren.
 
 ### Desde la terminal, sin levantar el servidor
@@ -59,11 +64,11 @@ Ambos se ejecutan en segundo plano y la página se actualiza sola mientras corre
 `manage.py` llama a los mismos servicios que usa la web — no reimplementa nada:
 
 ```bash
-python manage.py update   --league SP1
-python manage.py train    --league SP1
-python manage.py simulate --league SP1 --sims 500 --seed 42
-python manage.py project  --league SP1
-python manage.py evaluate --league SP1     # última evaluación guardada, sin reentrenar
+python manage.py update
+python manage.py train
+python manage.py simulate --sims 500 --seed 42
+python manage.py project
+python manage.py evaluate     # última evaluación guardada, sin reentrenar
 ```
 
 ### Tests
@@ -73,19 +78,6 @@ pytest                 # suite completa (los lentos, marcados `slow`, se excluye
 pytest -m slow         # el test de integración de red real (descarga + entrena)
 ```
 
-### Fichajes (opcional)
-
-Requiere el submódulo `transfermarkt-api` corriendo aparte, en el puerto 8001 (el 8000
-lo usa el propio dashboard):
-
-```bash
-git submodule update --init
-cd transfermarkt-api && PYTHONPATH=$PWD uvicorn app.main:app --port 8001
-```
-
-Si no está arrancado, el botón "Analizar fichajes" falla con un mensaje claro; el resto
-del dashboard funciona igual sin él.
-
 ---
 
 ## Arquitectura
@@ -93,11 +85,11 @@ del dashboard funciona igual sin él.
 ```
 core/       librería compartida: LeagueState (features/estado/clasificación),
             carga y normalización de CSV, evaluación, goles Poisson, errores
-app/        dashboard FastAPI — routers → services → core
+app/        web FastAPI + Jinja2 + HTMX (tema retro en app/static) — routers → services → core
 models/     LeaguePredictor (XGBoost/RandomForest/GradientBoosting/LightGBM)
 scripts/    orquestación: descarga genérica, simulador de temporada
 manage.py   CLI fino sobre app/services — sin lógica propia
-config/     leagues.yaml: códigos de liga, temporada actual, ascendidos
+config/     leagues.yaml: La Liga, temporada actual, ascendidos
 tests/      pytest + fixtures de datos reales congeladas (5 temporadas de SP1)
 ```
 
@@ -111,8 +103,7 @@ El target de resultado es `{-1: visitante, 0: empate, 1: local}` en todo el cód
 igual. El modelo entrena con 5 temporadas históricas y evalúa sobre la temporada actual
 completa, tocada una sola vez (`core/evaluation.py`).
 
-Cada acción del dashboard (actualizar datos, entrenar, simular, proyectar, analizar
-fichajes) es un job que corre en segundo plano, serializado con un lock — nada permite
+Cada acción (actualizar datos, entrenar, simular, proyectar) es un job que corre en segundo plano, serializado con un lock — nada permite
 lanzar dos entrenamientos de XGBoost a la vez peleándose por los núcleos. El progreso se
 sondea desde el navegador cada 2 segundos vía HTMX.
 
@@ -124,20 +115,18 @@ Documentación más detallada, pensada para quien vaya a tocar el código, en
 ## Fuente de datos
 
 [football-data.co.uk](https://www.football-data.co.uk/) — resultados históricos, sin
-necesidad de clave de API. Los códigos de liga (`SP1`, `E0`, `D1`, `I1`, `F1`) son los
-suyos, y viven como string en todo el proyecto — no hay ningún id numérico de liga.
+necesidad de clave de API. La Liga es `SP1` en su nomenclatura; ese código se conserva
+como clave en la BD, en `data/raw/SP1/` y en el nombre del modelo.
 
 ## Limitaciones conocidas
 
 - El modelo no usa alineaciones, lesiones ni datos en tiempo real — solo estadística
   acumulada previa al partido. Ver la nota de precisión más arriba.
 - `config/leagues.yaml → next_season.promoted_teams` viene con nombres de relleno
-  (`"Ascendido 1"`, …) que hay que sustituir por los ascendidos reales de cada liga
-  antes de que la proyección de la temporada siguiente tenga sentido.
-- El análisis de fichajes solo tiene alias de nombre de equipo configurados para La
-  Liga; en el resto de ligas el emparejamiento con Transfermarkt puede fallar para
-  equipos con nombres muy distintos entre fuentes (p. ej. "Man United" vs "Manchester
-  United").
+  (`"Ascendido 1"`, …) que hay que sustituir por los ascendidos reales antes de que la
+  proyección de la temporada siguiente tenga sentido.
+
+Las mejoras estudiadas y su prioridad están en [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Autor
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Error 404 · LM LaLiga{% endblock %}
+
+{% block content %}
+<script>
+    // Como el «Esc» del botón: vuelve a la portada
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") location.href = "/"; });
+</script>
+<section class="ventana ventana--error" aria-labelledby="t-error">
+    <h2 id="t-error" class="ventana__titulo">Error 404</h2>
+    <p class="error__codigo">Liga no encontrada</p>
+    <p>{{ mensaje }}</p>
+    <p class="nota">Este proyecto solo cubre {{ liga.name }}.</p>
+    <p><a class="boton boton--enlace" href="/"><span class="boton__tecla" aria-hidden="true">Esc</span> Volver a la portada</a></p>
+</section>
+{% endblock %}

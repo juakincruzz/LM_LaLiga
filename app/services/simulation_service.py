@@ -4,6 +4,7 @@ from datetime import datetime
 
 import aiosqlite
 
+from app.config import get_current_season
 from scripts.season_simulator import simulate_season
 
 
@@ -41,8 +42,8 @@ async def run_simulation(
     await db.execute(
         """
         INSERT INTO simulations
-            (model_run_id, league_code, sim_count, standings_json, label, seed, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (model_run_id, league_code, sim_count, standings_json, label, seed, created_at, season)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             run_id,
@@ -52,6 +53,7 @@ async def run_simulation(
             "Temporada actual",
             seed,
             datetime.now().isoformat(),
+            get_current_season(),
         ),
     )
     await db.commit()

@@ -1,30 +1,46 @@
-<div class="overflow-x-auto">
-<table class="w-full text-sm text-left">
+{# Zonas de La Liga: 1–4 Champions, 5–6 competiciones europeas, últimos 3 descenso. #}
+{% set n = standings|length %}
+<div class="tabla-scroll">
+<table class="tabla">
     <caption class="sr-only">Clasificación proyectada con probabilidades de título y descenso</caption>
-    <thead class="bg-gray-100 text-gray-700">
+    <thead>
         <tr>
-            <th scope="col" class="px-4 py-2">Pos</th>
-            <th scope="col" class="px-4 py-2">Equipo</th>
-            <th scope="col" class="px-4 py-2">Pts</th>
-            <th scope="col" class="px-4 py-2">GF</th>
-            <th scope="col" class="px-4 py-2">GC</th>
-            <th scope="col" class="px-4 py-2">Prob. Título</th>
-            <th scope="col" class="px-4 py-2">Prob. Descenso</th>
+            <th scope="col" class="pos"><abbr title="Posición">#</abbr></th>
+            <th scope="col" class="equipo">Equipo</th>
+            <th scope="col"><abbr title="Puntos">Pts</abbr></th>
+            <th scope="col"><abbr title="Goles a favor">GF</abbr></th>
+            <th scope="col"><abbr title="Goles en contra">GC</abbr></th>
+            <th scope="col"><abbr title="Diferencia de goles">DG</abbr></th>
+            <th scope="col">Título</th>
+            <th scope="col">Descenso</th>
         </tr>
     </thead>
     <tbody>
         {% for team in standings %}
-        <tr class="border-b hover:bg-gray-50">
-            <td class="px-4 py-2 font-semibold">{{ loop.index }}</td>
-            <th scope="row" class="px-4 py-2 font-normal">{{ team.name }}</th>
-            <td class="px-4 py-2">{{ team.points }}</td>
-            <td class="px-4 py-2">{{ team.gf }}</td>
-            <td class="px-4 py-2">{{ team.ga }}</td>
+        {% set zona = "champions" if loop.index <= 4 else ("europa" if loop.index <= 6 else ("descenso" if loop.index > n - 3 else "")) %}
+        {% set dg = team.gf - team.ga %}
+        <tr class="{{ 'zona-' ~ zona if zona }}">
+            <td class="pos">{{ loop.index }}</td>
+            <th scope="row">{{ team.name|equipo }}</th>
+            <td class="pts">{{ team.points }}</td>
+            <td>{{ team.gf }}</td>
+            <td>{{ team.ga }}</td>
+            <td>{{ "+" if dg > 0 }}{{ dg }}</td>
             {# '—' significa "no calculado"; un 0,0 % es un dato, no un hueco #}
-            <td class="px-4 py-2">{% if team.champion_prob is not none %}{{ "%.1f"|format(team.champion_prob * 100) }}%{% else %}—{% endif %}</td>
-            <td class="px-4 py-2">{% if team.relegation_prob is not none %}{{ "%.1f"|format(team.relegation_prob * 100) }}%{% else %}—{% endif %}</td>
+            {% for prob, clase in [(team.champion_prob, "titulo"), (team.relegation_prob, "descenso")] %}
+            <td class="prob prob--{{ clase }}{{ ' cero' if prob == 0 }}">
+                {% if prob is not none %}
+                <span class="mini" aria-hidden="true"><i style="width: {{ "%.1f"|format(prob * 100) }}%"></i></span>{{ "%.1f"|format(prob * 100) }}%
+                {% else %}—{% endif %}
+            </td>
+            {% endfor %}
         </tr>
         {% endfor %}
     </tbody>
 </table>
 </div>
+<ul class="leyenda">
+    <li><i class="leyenda__champions" aria-hidden="true"></i>Champions</li>
+    <li><i class="leyenda__europa" aria-hidden="true"></i>Europa</li>
+    <li><i class="leyenda__descenso" aria-hidden="true"></i>Descenso</li>
+</ul>

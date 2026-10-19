@@ -145,6 +145,17 @@ class LeagueState:
             team.reset_season()
         self.last_match_date.clear()
 
+    def keep_only(self, teams) -> None:
+        """Deja solo los equipos indicados (los de la temporada en curso).
+
+        Al construir el estado con varias temporadas, los descendidos siguen
+        en `_teams` con los acumuladores a cero y aparecerían en la
+        clasificación. El H2H se conserva entero: es historial, no tabla.
+        """
+        teams = set(teams)
+        self._teams = {n: t for n, t in self._teams.items() if n in teams}
+        self.last_match_date = {n: d for n, d in self.last_match_date.items() if n in teams}
+
     def apply_match(
         self,
         home_team: str,

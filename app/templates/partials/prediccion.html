@@ -1,0 +1,89 @@
+{% if error %}
+<p class="vacio"><span class="vacio__icono" aria-hidden="true">!</span>{{ error }}</p>
+{% else %}
+{% set top = p.marcadores[0] %}
+{% set nombres = {"1": "Gana " ~ (p.local.nombre|equipo), "X": "Empate", "2": "Gana " ~ (p.visitante.nombre|equipo)} %}
+{% set probs = {"1": p.p1, "X": p.px, "2": p.p2} %}
+<div class="duelo">
+    <div class="marcador duelo__marcador">
+        <span class="duelo__equipo">{{ p.local.nombre|equipo }}</span>
+        <span class="marcador__num">{{ top.local }}-{{ top.visitante }}</span>
+        <span class="duelo__equipo">{{ p.visitante.nombre|equipo }}</span>
+        <span class="marcador__lbl">Marcador más probable · {{ "%.1f"|format(top.prob * 100) }} % · {{ p.fecha }}</span>
+    </div>
+
+    <p class="duelo__pronostico">
+        Pronóstico: <strong>{{ nombres[p.favorito] }}</strong> ({{ "%.0f"|format(probs[p.favorito] * 100) }} %)
+    </p>
+
+    <div class="tri tri--grande" role="img"
+         aria-label="Local {{ '%.0f'|format(p.p1 * 100) }} %, empate {{ '%.0f'|format(p.px * 100) }} %, visitante {{ '%.0f'|format(p.p2 * 100) }} %">
+        <i class="tri__1" style="width: {{ '%.1f'|format(p.p1 * 100) }}%"></i><i class="tri__x" style="width: {{ '%.1f'|format(p.px * 100) }}%"></i><i class="tri__2" style="width: {{ '%.1f'|format(p.p2 * 100) }}%"></i>
+    </div>
+    <div class="partido__probs duelo__probs">
+        <span><span class="clave clave--1">1</span> {{ "%.1f"|format(p.p1 * 100) }}%</span>
+        <span><span class="clave clave--x">X</span> {{ "%.1f"|format(p.px * 100) }}%</span>
+        <span><span class="clave clave--2">2</span> {{ "%.1f"|format(p.p2 * 100) }}%</span>
+    </div>
+
+    <div class="duelo__rejilla">
+        <div>
+            <h3 class="duelo__h">Marcadores más probables</h3>
+            <ul class="barras">
+                {% for m in p.marcadores %}
+                <li class="{{ 'es-modelo' if loop.first }}">
+                    <span>{{ m.local }}-{{ m.visitante }}</span>
+                    <span class="valor">{{ "%.1f"|format(m.prob * 100) }}%</span>
+                    {# Escala relativa al primero: la probabilidad de un marcador exacto rara vez pasa del 15 % #}
+                    <span class="barra" aria-hidden="true"><i style="width: {{ "%.1f"|format(m.prob / top.prob * 100) }}%"></i></span>
+                </li>
+                {% endfor %}
+            </ul>
+            <p class="nota">Goles esperados: {{ "%.2f"|format(p.xg_local) }} – {{ "%.2f"|format(p.xg_visitante) }}</p>
+        </div>
+
+        <div>
+            <h3 class="duelo__h">Cara a cara</h3>
+            <table class="comparativa">
+                <caption class="sr-only">Comparativa de los dos equipos esta temporada</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{{ p.local.nombre|equipo }}</th>
+                        <th scope="col"><span class="sr-only">Dato</span></th>
+                        <th scope="col">{{ p.visitante.nombre|equipo }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set L, V = p.local, p.visitante %}
+                    <tr><td>{{ L.posicion or "—" }}º</td><th scope="row">Posición</th><td>{{ V.posicion or "—" }}º</td></tr>
+                    <tr><td>{{ L.puntos }}</td><th scope="row">Puntos</th><td>{{ V.puntos }}</td></tr>
+                    <tr><td>{{ "%.2f"|format(L.gf) }}</td><th scope="row">Goles/partido</th><td>{{ "%.2f"|format(V.gf) }}</td></tr>
+                    <tr><td>{{ "%.2f"|format(L.gc) }}</td><th scope="row">Encajados/partido</th><td>{{ "%.2f"|format(V.gc) }}</td></tr>
+                    <tr>
+                        <td>{% for r in L.forma %}<span class="forma forma--{{ r }}">{{ r }}</span>{% else %}—{% endfor %}</td>
+                        <th scope="row">Forma</th>
+                        <td>{% for r in V.forma %}<span class="forma forma--{{ r }}">{{ r }}</span>{% else %}—{% endfor %}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="nota">
+                {% if p.h2h.partidos %}
+                {{ p.local.nombre|equipo }} en casa ante {{ p.visitante.nombre|equipo }}, temporadas analizadas:
+                {{ p.h2h.victorias }}V {{ p.h2h.empates }}E {{ p.h2h.derrotas }}D.
+                {% else %}
+                Sin precedentes de este partido (con este local) en las temporadas analizadas.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <p class="nota">
+        Es una estimación, no una certeza.
+        {% if fiabilidad %}
+        Fuera de muestra, el modelo acierta el {{ "%.0f"|format(fiabilidad.accuracy * 100) }} % de los
+        resultados{% if fiabilidad.baseline_bookmaker is not none %} (las casas de apuestas, el
+        {{ "%.0f"|format(fiabilidad.baseline_bookmaker * 100) }} %){% endif %}.
+        {% endif %}
+    </p>
+</div>
+{% endif %}

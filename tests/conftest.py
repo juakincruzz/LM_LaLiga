@@ -11,12 +11,26 @@ from unittest import mock
 
 import httpx
 import pytest
+import requests
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture(autouse=True)
-def temp_db(tmp_path, monkeypatch):
+def temporada_de_fixtures(monkeypatch):
+    """Congela la temporada actual en 25/26, la de los CSV de tests/fixtures.
+
+    config/leagues.yaml sigue a la temporada real; sin esto, cambiarla rompería
+    todos los tests que cuentan con la 25/26 completa de la fixture. Debe ir
+    antes que `temp_db`, que siembra la liga con la temporada actual.
+    """
+    import app.config as config
+
+    monkeypatch.setitem(config.DEFAULTS, "current_season", "2526")
+
+
+@pytest.fixture(autouse=True)
+def temp_db(tmp_path, monkeypatch, temporada_de_fixtures):
     """Redirige la base de datos a un fichero temporal y la inicializa.
 
     `DB_PATH` se importa por valor en varios módulos (`from app.database import
@@ -96,6 +110,11 @@ def mock_download():
     }
 
     def responder(url, timeout=30):
+        if "openfootball" in url:
+            # Sin calendario: los tests que lo necesitan lo escriben en disco
+            respuesta = mock.MagicMock()
+            respuesta.raise_for_status.side_effect = requests.HTTPError("404 (calendario de test)")
+            return respuesta
         temporada = url.rstrip("/").split("/")[-2]  # .../mmz4281/{temporada}/SP1.csv
         return mock.MagicMock(content=contenidos[temporada])
 
