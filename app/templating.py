@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from app.config import LEAGUE_CODE, get_current_season, get_league_config, season_label
+from app.escudos import escudo_svg
 from core.equipos import nombre_visible
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -26,6 +27,7 @@ templates.env.globals["league_code"] = LEAGUE_CODE
 templates.env.globals["temporada_actual"] = season_label(get_current_season())
 templates.env.filters["temporadas"] = _temporadas
 templates.env.filters["equipo"] = nombre_visible
+templates.env.globals["escudo"] = escudo_svg
 
 # Versión de los estáticos para las URL (?v=…): sin ella el navegador sigue
 # usando el CSS/JS antiguo de su caché después de un cambio.
