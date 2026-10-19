@@ -16,9 +16,10 @@ import numpy as np
 import pandas as pd
 import yaml
 
-from app.config import get_current_season
+from app.config import LEAGUE_CODE, get_current_season, get_league_config
 from app.services.season_state import get_season_state
 from core.dataset import load_season, played_only
+from core.equipos import ESCUDOS
 from core.features import build_state
 from scripts.understat import load_lineups
 
@@ -369,31 +370,25 @@ def _cargar(league_code: str, season: str):
     return df, lineups
 
 
-async def ficha(db, league_code: str, equipo: str) -> dict | None:
-    """Todo lo que pinta /equipo/{nombre}; `None` si el equipo no juega."""
-    season = await _temporada_con_datos(db, league_code)
-    if season is None or equipo not in await _equipos_de(db, league_code, season):
-        return None
+def _ascendidos() -> set[str]:
+    """Ascendidos reales de la proyección (los provisionales «Ascendido N» no
+    tienen escudo): aún sin partidos en la BD, pero la portada los enlaza."""
+    config = get_league_config(LEAGUE_CODE).get("next_season", {})
+    return {e for e in config.get("promoted_teams", []) if e in ESCUDOS}
 
-    estado = await get_season_state(db, league_code)
-    df, lineups = await asyncio.to_thread(_cargar, league_code, season)
-    es_actual = season == get_current_season()
-    hay_partidos = df is not None and es_actual and df["Result"].notna().any()
 
+def _componer(df, lineups, equipo: str, es_actual: bool) -> dict:
+    """La parte de pandas de la ficha; corre en un hilo, fuera del event loop."""
+    hay_partidos = df is not None and es_actual and equipo in set(df["HomeTeam"]) | set(df["AwayTeam"]) \
+        and df["Result"].notna().any()
     datos = {
-        "equipo": equipo,
-        "season": season,
-        "estado": estado,
         "es_actual": es_actual,
         "hay_partidos": bool(hay_partidos),
-        "cabecera": cabecera(df, equipo, date.today()) if df is not None and es_actual else cabecera(
-            pd.DataFrame(), equipo, date.today()
-        ),
+        "cabecera": cabecera(df if df is not None and es_actual else pd.DataFrame(), equipo, date.today()),
         "forma": forma(df, equipo) if hay_partidos else [],
         "fuertes_debiles": fuertes_debiles(df, equipo) if hay_partidos else {"fuertes": [], "debiles": []},
         "once": None,
         "mejores": None,
-        "palmares": palmares(equipo),
         "aviso_jugadores": None,
     }
     if lineups is None or not es_actual:
@@ -407,3 +402,30 @@ async def ficha(db, league_code: str, equipo: str) -> dict | None:
             datos["once"] = datos["mejores"] = None
             datos["aviso_jugadores"] = "Aún no hay alineaciones de este equipo esta temporada."
     return datos
+
+
+def _cargar_y_componer(league_code: str, season: str, equipo: str, es_actual: bool) -> dict:
+    df, lineups = _cargar(league_code, season)
+    return _componer(df, lineups, equipo, es_actual)
+
+
+async def ficha(db, league_code: str, equipo: str) -> dict | None:
+    """Todo lo que pinta /equipo/{nombre}; `None` si el equipo no juega."""
+    season = await _temporada_con_datos(db, league_code)
+    juega = season is not None and equipo in await _equipos_de(db, league_code, season)
+    if not juega and equipo not in _ascendidos():
+        return None
+
+    estado = await get_season_state(db, league_code)
+    es_actual = season == get_current_season()
+    if season is None:
+        compuesto = _componer(None, None, equipo, es_actual=False)
+    else:
+        compuesto = await asyncio.to_thread(_cargar_y_componer, league_code, season, equipo, es_actual)
+    return {
+        "equipo": equipo,
+        "season": season,
+        "estado": estado,
+        "palmares": palmares(equipo),
+        **compuesto,
+    }

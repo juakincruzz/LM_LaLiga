@@ -83,7 +83,8 @@ def download_understat(league_code: str, season: str, on_progress=None) -> dict:
     def falta(match_id) -> bool:
         return _leer_partido(carpeta / "partidos" / f"{match_id}.json") is None
 
-    jugados = [p["id"] for p in liga["dates"] if p["isResult"]]
+    # int(): el id acaba en una ruta de fichero, y viene de fuera
+    jugados = [int(p["id"]) for p in liga["dates"] if p["isResult"]]
     pendientes = [i for i in jugados if falta(i)]
     nuevos = fallos_seguidos = 0
     for n, match_id in enumerate(pendientes, start=1):

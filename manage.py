@@ -29,6 +29,9 @@ async def cmd_update(db: aiosqlite.Connection, args: argparse.Namespace) -> None
 
     resumen = await update_league_data(db, args.league, season=args.season)
     print(f"{args.league}: {resumen['partidos']} partidos ({resumen['jugados']} jugados)")
+    for aviso in ("aviso", "aviso_jugadores"):
+        if aviso in resumen:
+            print(f"  aviso: {resumen[aviso]}")
 
 
 async def cmd_train(db: aiosqlite.Connection, args: argparse.Namespace) -> None:

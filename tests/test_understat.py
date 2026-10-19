@@ -94,3 +94,21 @@ def test_pausa_siempre_y_corta_tras_fallos_seguidos(mock_understat, monkeypatch)
     assert r == {"partidos": 6, "nuevos": 0, "faltan": 6}
     assert mock_understat.call_count == 1 + 3  # la liga y 3 partidos; luego abandona
     assert len(pausas) == 2  # una pausa entre cada par de peticiones de partidos
+
+
+def test_id_de_partido_no_numerico_no_escribe_fuera_de_la_cache(mock_understat, data_root):
+    import json
+
+    original = mock_understat.side_effect
+
+    def liga_manipulada(url):
+        datos = original(url)
+        if "getLeagueData" in url:
+            datos = json.loads(json.dumps(datos))
+            datos["dates"][0]["id"] = "../../malicioso"
+        return datos
+
+    mock_understat.side_effect = liga_manipulada
+    with pytest.raises(ValueError):
+        download_understat("SP1", "2526")
+    assert not list(data_root.rglob("malicioso*"))

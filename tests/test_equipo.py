@@ -100,3 +100,15 @@ async def test_equipo_sin_alineaciones_muestra_mensaje_en_jugadores(client, pobl
     # Getafe no sale en las alineaciones de la fixture: como un equipo en pretemporada
     texto = (await client.get("/equipo/Getafe")).text
     assert texto.count("Aún no hay alineaciones de este equipo esta temporada.") == 2
+
+
+async def test_ascendido_de_la_proyeccion_tiene_ficha(client, poblada, monkeypatch):
+    # Fuera de temporada, la proyección lista ascendidos reales que aún no
+    # tienen partidos en la BD: su enlace no debe dar 404
+    import app.services.team_service as ts
+
+    monkeypatch.setattr(ts, "_ascendidos", lambda: {"Malaga"})
+    r = await client.get("/equipo/Malaga")
+    assert r.status_code == 200
+    assert "Aún no ha jugado esta temporada" in r.text
+    assert (await client.get("/equipo/Ascendido%201")).status_code == 404
