@@ -63,6 +63,10 @@ class LeaguePredictor:
 
     def train_random_forest(self, X_train, y_train, X_test=None, y_test=None):
         """Entrena modelo Random Forest."""
+        self._is_fitted = False
+    
+    def train_random_forest(self, X_train, y_train, X_test, y_test):
+        """Entrena modelo Random Forest"""
         print("\n🌳 Entrenando Random Forest...")
         model = RandomForestClassifier(
             n_estimators=200, max_depth=10, min_samples_split=5,
