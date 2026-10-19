@@ -4,7 +4,9 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from app.services.team_service import cabecera, forma, fuertes_debiles, mejores_jugadores, posible_once
+from app.services.team_service import (
+    cabecera, forma, fuertes_debiles, mejores_jugadores, palmares, posible_once,
+)
 from core.dataset import load_season, played_only
 from core.features import build_state
 
@@ -225,3 +227,29 @@ def test_traspasado_solo_cuenta_con_este_equipo(lineups):
     fila["team"], fila["opponent"], fila["goals"], fila["match_id"] = "Getafe", "Betis", 10, 1
     con_otro_club = pd.concat([lineups, fila.to_frame().T], ignore_index=True)
     assert dict(mejores_jugadores(con_otro_club, "Betis")["Goles"])[goleador] == goles
+
+
+# --- Palmarés ---------------------------------------------------------------
+
+EQUIPOS_2627 = ["Alaves", "Ath Bilbao", "Ath Madrid", "Barcelona", "Celta", "La Coruna", "Elche",
+                "Espanol", "Getafe", "Levante", "Malaga", "Osasuna", "Santander", "Vallecano", "Betis",
+                "Real Madrid", "Sociedad", "Sevilla", "Valencia", "Villarreal"]
+
+
+def test_palmares_orden_y_sin_ceros():
+    p = palmares("Real Madrid")
+    assert p[0]["competicion"] == "Liga"
+    assert all(t["titulos"] > 0 and t["ultimo"] for t in p)
+    assert any(t["competicion"] == "Copa de Europa" for t in p)
+
+
+def test_palmares_vacio():
+    assert palmares("Getafe") == []
+
+
+def test_palmares_ausente():
+    assert palmares("Recien Ascendido") is None
+
+
+def test_palmares_cubre_la_temporada_actual():
+    assert all(palmares(e) is not None for e in EQUIPOS_2627)

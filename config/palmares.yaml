@@ -1,0 +1,108 @@
+# Palmarés de los clubes para la ficha de equipo (/equipo/{nombre}).
+#
+# Regla: solo títulos reconocidos oficialmente por la RFEF (nacionales) y la
+# UEFA (europeos), con los recuentos de la Wikipedia en español. Los títulos
+# discutidos no se suman a otra competición: la Copa de Ferias y la Copa Eva
+# Duarte van en filas propias, y la Copa de la Coronación de 1902 no cuenta.
+# La Copa de 1909 del Club Ciclista se atribuye a la Real Sociedad, como hace
+# la Wikipedia en español.
+#
+# Se edita a mano cuando un club gana algo. Claves de equipo = nombres de
+# football-data.co.uk. Equipo con {} = sin títulos oficiales; equipo ausente =
+# «Palmarés no disponible». `ultimo` = temporada del último título.
+#
+# Última revisión: 2026-10-19 (incluye la temporada 2025/26).
+
+competiciones:
+  liga: Liga
+  copa: Copa del Rey
+  supercopa: Supercopa de España
+  champions: Copa de Europa
+  uefa: UEFA / Europa League
+  conference: Conference League
+  recopa: Recopa
+  supercopa_europa: Supercopa de Europa
+  copa_ferias: Copa de Ferias
+  eva_duarte: Copa Eva Duarte
+
+equipos:
+  Real Madrid:
+    liga: {titulos: 36, ultimo: "2023/24"}
+    copa: {titulos: 20, ultimo: "2022/23"}
+    supercopa: {titulos: 13, ultimo: "2023/24"}
+    champions: {titulos: 15, ultimo: "2023/24"}
+    uefa: {titulos: 2, ultimo: "1985/86"}
+    supercopa_europa: {titulos: 6, ultimo: "2024/25"}
+    eva_duarte: {titulos: 1, ultimo: "1946/47"}
+  Barcelona:
+    liga: {titulos: 29, ultimo: "2025/26"}
+    copa: {titulos: 32, ultimo: "2024/25"}
+    supercopa: {titulos: 16, ultimo: "2025/26"}
+    champions: {titulos: 5, ultimo: "2014/15"}
+    recopa: {titulos: 4, ultimo: "1996/97"}
+    supercopa_europa: {titulos: 5, ultimo: "2015/16"}
+    copa_ferias: {titulos: 3, ultimo: "1965/66"}
+    eva_duarte: {titulos: 3, ultimo: "1952/53"}
+  Ath Madrid:
+    liga: {titulos: 11, ultimo: "2020/21"}
+    copa: {titulos: 10, ultimo: "2012/13"}
+    supercopa: {titulos: 2, ultimo: "2014/15"}
+    uefa: {titulos: 3, ultimo: "2017/18"}
+    recopa: {titulos: 1, ultimo: "1961/62"}
+    supercopa_europa: {titulos: 3, ultimo: "2018/19"}
+    eva_duarte: {titulos: 1, ultimo: "1950/51"}
+  Ath Bilbao:
+    liga: {titulos: 8, ultimo: "1983/84"}
+    copa: {titulos: 24, ultimo: "2023/24"}
+    supercopa: {titulos: 3, ultimo: "2020/21"}
+    eva_duarte: {titulos: 1, ultimo: "1949/50"}
+  Valencia:
+    liga: {titulos: 6, ultimo: "2003/04"}
+    copa: {titulos: 8, ultimo: "2018/19"}
+    supercopa: {titulos: 1, ultimo: "1999/00"}
+    uefa: {titulos: 1, ultimo: "2003/04"}
+    recopa: {titulos: 1, ultimo: "1979/80"}
+    supercopa_europa: {titulos: 2, ultimo: "2004/05"}
+    copa_ferias: {titulos: 2, ultimo: "1962/63"}
+    eva_duarte: {titulos: 1, ultimo: "1948/49"}
+  Sevilla:
+    liga: {titulos: 1, ultimo: "1945/46"}
+    copa: {titulos: 5, ultimo: "2009/10"}
+    supercopa: {titulos: 1, ultimo: "2007/08"}
+    uefa: {titulos: 7, ultimo: "2022/23"}
+    supercopa_europa: {titulos: 1, ultimo: "2006/07"}
+  Sociedad:
+    liga: {titulos: 2, ultimo: "1981/82"}
+    copa: {titulos: 4, ultimo: "2025/26"}
+    supercopa: {titulos: 1, ultimo: "1982/83"}
+  Betis:
+    liga: {titulos: 1, ultimo: "1934/35"}
+    copa: {titulos: 3, ultimo: "2021/22"}
+  La Coruna:
+    liga: {titulos: 1, ultimo: "1999/00"}
+    copa: {titulos: 2, ultimo: "2001/02"}
+    supercopa: {titulos: 3, ultimo: "2002/03"}
+  Espanol:
+    copa: {titulos: 4, ultimo: "2005/06"}
+  Villarreal:
+    uefa: {titulos: 1, ultimo: "2020/21"}
+  Mallorca:
+    copa: {titulos: 1, ultimo: "2002/03"}
+    supercopa: {titulos: 1, ultimo: "1998/99"}
+  Alaves: {}
+  Almeria: {}
+  Cadiz: {}
+  Celta: {}
+  Elche: {}
+  Getafe: {}
+  Girona: {}
+  Granada: {}
+  Las Palmas: {}
+  Leganes: {}
+  Levante: {}
+  Malaga: {}
+  Osasuna: {}
+  Oviedo: {}
+  Santander: {}
+  Valladolid: {}
+  Vallecano: {}

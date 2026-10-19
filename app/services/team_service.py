@@ -9,9 +9,11 @@ features del modelo.
 """
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 from core.dataset import played_only
 from core.features import build_state
@@ -300,3 +302,23 @@ def mejores_jugadores(lineups: pd.DataFrame, equipo: str, n: int = 3) -> dict[st
             (fila["nombre"], float(fila[col]) if col == "xg" else int(fila[col])) for _, fila in top.iterrows()
         ]
     return mejores
+
+
+# --- Palmarés ------------------------------------------------------------------
+
+RUTA_PALMARES = Path(__file__).resolve().parents[2] / "config" / "palmares.yaml"
+with open(RUTA_PALMARES, encoding="utf-8") as _f:
+    _PALMARES = yaml.safe_load(_f)
+
+
+def palmares(equipo: str) -> list[dict] | None:
+    """Títulos por competición, en el orden del fichero y sin las que están a
+    cero. `[]` = sin títulos oficiales; `None` = el equipo no está en el fichero."""
+    titulos = _PALMARES["equipos"].get(equipo)
+    if titulos is None:
+        return None
+    return [
+        {"competicion": etiqueta, "titulos": titulos[clave]["titulos"], "ultimo": titulos[clave]["ultimo"]}
+        for clave, etiqueta in _PALMARES["competiciones"].items()
+        if titulos.get(clave, {}).get("titulos")
+    ]
