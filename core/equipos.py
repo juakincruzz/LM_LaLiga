@@ -42,7 +42,8 @@ OPENFOOTBALL = {
 }
 
 # Understat (alineaciones y datos de jugadores) → football-data.co.uk.
-# Verificado contra Understat 2021 a 2026. Mismo trato que OPENFOOTBALL: un
+# Verificado contra Understat 2014 a 2026 (13 temporadas, 4.638 partidos que
+# casan uno a uno con football-data, goles incluidos). Mismo trato que OPENFOOTBALL: un
 # ascendido que no esté aquí hace fallar la descarga con su nombre.
 UNDERSTAT = {
     "Alaves": "Alaves",
@@ -52,7 +53,9 @@ UNDERSTAT = {
     "Barcelona": "Barcelona",
     "Cadiz": "Cadiz",
     "Celta Vigo": "Celta",
+    "Cordoba": "Cordoba",
     "Deportivo La Coruna": "La Coruna",
+    "Eibar": "Eibar",
     "Elche": "Elche",
     "Espanyol": "Espanol",
     "Getafe": "Getafe",
@@ -71,7 +74,9 @@ UNDERSTAT = {
     "Real Oviedo": "Oviedo",
     "Real Sociedad": "Sociedad",
     "Real Valladolid": "Valladolid",
+    "SD Huesca": "Huesca",
     "Sevilla": "Sevilla",
+    "Sporting Gijon": "Sp Gijon",
     "Valencia": "Valencia",
     "Villarreal": "Villarreal",
 }
