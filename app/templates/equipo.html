@@ -91,6 +91,8 @@
                 {% endfor %}
             </div>
             <p class="nota">Comparado con los equipos de la temporada, por partido. La raya amarilla es la media de la liga.</p>
+            {% elif f.hay_partidos %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">·</span>Nada que se aleje claramente de la media de la liga{% if c.jugados < 5 %} (hacen falta al menos 5 partidos){% endif %}.</p>
             {% else %}
             <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Aún no ha jugado esta temporada.</p>
             {% endif %}

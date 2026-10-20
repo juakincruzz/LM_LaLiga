@@ -253,3 +253,55 @@ def test_palmares_ausente():
 
 def test_palmares_cubre_la_temporada_actual():
     assert all(palmares(e) is not None for e in EQUIPOS_2627)
+
+
+# --- Revisión: umbral, familias y portero ------------------------------------
+
+
+def test_fuertes_debiles_solo_lo_que_se_aleja_de_la_media(df):
+    from app.services.team_service import Z_MINIMO, MEDIDAS, _por_equipo
+
+    largo = _por_equipo(df)
+    grupos = dict(tuple(largo.groupby("team")))
+    for equipo in ("Barcelona", "Getafe", "Real Madrid"):
+        r = fuertes_debiles(df, equipo, n=20)
+        for lado, signo in (("fuertes", 1), ("debiles", -1)):
+            for m in r[lado]:
+                medida = next(x for x in MEDIDAS if x.clave == m["clave"])
+                valores = pd.Series({t: medida.calcular(g) for t, g in grupos.items()}).dropna()
+                z = (valores[equipo] - valores.mean()) / valores.std()
+                z = -z if medida.menos_es_mejor else z
+                assert signo * z >= Z_MINIMO, (equipo, m["clave"], z)
+
+
+def test_fuertes_debiles_una_medida_por_familia(df):
+    for equipo in ("Barcelona", "Real Madrid", "Getafe", "Betis"):
+        r = fuertes_debiles(df, equipo, n=20)
+        for lado in ("fuertes", "debiles"):
+            familias = [m["familia"] for m in r[lado]]
+            assert len(familias) == len(set(familias)), (equipo, lado, familias)
+
+
+def test_fuertes_debiles_nada_con_pocos_partidos(df):
+    from app.services.team_service import PARTIDOS_MINIMOS
+
+    jugados = played_only(df)
+    del_betis = jugados[(jugados["HomeTeam"] == "Betis") | (jugados["AwayTeam"] == "Betis")]
+    corte = del_betis["Date"].iloc[PARTIDOS_MINIMOS - 2]
+    assert fuertes_debiles(df[df["Date"] <= corte], "Betis") == {"fuertes": [], "debiles": []}
+
+
+def test_once_sin_portero_titular_en_el_tramo_usa_el_ultimo_de_la_temporada(lineups):
+    """Si en los últimos 5 partidos ningún titular figura como GK, el 11 sigue
+    teniendo portero (el último que lo fue) y 11 jugadores. La fixture tiene 6
+    partidos del Betis: el más antiguo queda fuera del tramo."""
+    del_betis = lineups[lineups["team"] == "Betis"]
+    tramo = del_betis.sort_values("date")["match_id"].drop_duplicates().tail(5)
+    sin_gk = lineups.copy()
+    quitar = sin_gk["match_id"].isin(tramo) & (sin_gk["team"] == "Betis") & (sin_gk["position"] == "GK")
+    sin_gk.loc[quitar, "position"] = "Sub"
+    sin_gk.loc[quitar, "starter"] = False
+
+    o = posible_once(sin_gk, "Betis")
+    assert len(o["jugadores"]) == 11
+    assert sum(j["posicion"] == "GK" for j in o["jugadores"]) == 1

@@ -114,6 +114,15 @@ def cabecera(df: pd.DataFrame, equipo: str, hoy: date) -> dict:
 # --- Puntos fuertes y débiles ------------------------------------------------
 
 
+# Para contar como punto fuerte o débil, el equipo tiene que separarse de la
+# media de la liga al menos 0,75 desviaciones típicas: sin umbral, «Muchas
+# tarjetas» salía con 2,5 por partido frente a 2,25 de media, y con 0,5 aún
+# pasaba «Marca menos de lo que genera» con −0,08 frente a 0,08. Y con menos
+# de 5 partidos las medias son casi ruido, así que no se muestra nada.
+Z_MINIMO = 0.75
+PARTIDOS_MINIMOS = 5
+
+
 @dataclass(frozen=True)
 class Medida:
     clave: str
@@ -122,6 +131,9 @@ class Medida:
     menos_es_mejor: bool
     formato: str  # "0.0"/"0.00" (media por partido) o "0%" (proporción)
     calcular: object  # (partidos del equipo) -> float
+    # Medidas que dicen casi lo mismo (goles totales, en casa, fuera): de
+    # cada familia sale como mucho una por lado, la más destacada.
+    familia: str = ""
 
 
 def _ratio(a: pd.Series, b: pd.Series) -> float:
@@ -129,16 +141,18 @@ def _ratio(a: pd.Series, b: pd.Series) -> float:
 
 
 MEDIDAS = [
-    Medida("goles_favor", "Mucho gol", "Le cuesta marcar", False, "0.0", lambda g: g["gf"].mean()),
-    Medida("goles_contra", "Defensa sólida", "Encaja mucho", True, "0.0", lambda g: g["gc"].mean()),
+    Medida("goles_favor", "Mucho gol", "Le cuesta marcar", False, "0.0", lambda g: g["gf"].mean(),
+           familia="goles_favor"),
+    Medida("goles_contra", "Defensa sólida", "Encaja mucho", True, "0.0", lambda g: g["gc"].mean(),
+           familia="goles_contra"),
     Medida("goles_favor_casa", "Golea en casa", "Poco gol en casa", False, "0.0",
-           lambda g: g.loc[g["local"], "gf"].mean()),
+           lambda g: g.loc[g["local"], "gf"].mean(), familia="goles_favor"),
     Medida("goles_contra_casa", "Muy sólido en casa", "Frágil en casa", True, "0.0",
-           lambda g: g.loc[g["local"], "gc"].mean()),
+           lambda g: g.loc[g["local"], "gc"].mean(), familia="goles_contra"),
     Medida("goles_favor_fuera", "Marca a domicilio", "Sin gol fuera", False, "0.0",
-           lambda g: g.loc[~g["local"], "gf"].mean()),
+           lambda g: g.loc[~g["local"], "gf"].mean(), familia="goles_favor"),
     Medida("goles_contra_fuera", "Fiable a domicilio", "Encaja mucho fuera", True, "0.0",
-           lambda g: g.loc[~g["local"], "gc"].mean()),
+           lambda g: g.loc[~g["local"], "gc"].mean(), familia="goles_contra"),
     Medida("tiros", "Dispara mucho", "Apenas dispara", False, "0.0", lambda g: g["tiros"].mean()),
     Medida("punteria", "Mucha puntería", "Poca puntería", False, "0%",
            lambda g: _ratio(g["tiros_puerta"], g["tiros"])),
@@ -157,9 +171,13 @@ MEDIDAS = [
 
 def fuertes_debiles(df: pd.DataFrame, equipo: str, n: int = 3) -> dict:
     """Las `n` medidas en que el equipo más destaca por arriba y por abajo
-    respecto a los equipos de la temporada, en desviaciones típicas."""
+    respecto a los equipos de la temporada, en desviaciones típicas.
+
+    Solo cuentan las que se separan al menos `Z_MINIMO` de la media, una por
+    familia y lado, y nada hasta que el equipo lleva `PARTIDOS_MINIMOS`.
+    """
     largo = _por_equipo(df)
-    if equipo not in set(largo["team"]):
+    if (largo["team"] == equipo).sum() < PARTIDOS_MINIMOS:
         return {"fuertes": [], "debiles": []}
 
     puntuadas = []
@@ -183,6 +201,7 @@ def fuertes_debiles(df: pd.DataFrame, equipo: str, n: int = 3) -> dict:
 
         puntuadas.append((z, {
             "clave": m.clave,
+            "familia": m.familia or m.clave,
             "texto": m.fuerte if z > 0 else m.debil,
             "valor": float(valores[equipo]),
             "media": float(media),
@@ -193,9 +212,19 @@ def fuertes_debiles(df: pd.DataFrame, equipo: str, n: int = 3) -> dict:
         }))
 
     puntuadas.sort(key=lambda par: par[0], reverse=True)
-    fuertes = [d for z, d in puntuadas if z > 0][:n]
-    debiles = [d for z, d in reversed(puntuadas) if z < 0][:n]
-    return {"fuertes": fuertes, "debiles": debiles}
+
+    def elegir(candidatas) -> list[dict]:
+        elegidas, familias = [], set()
+        for d in candidatas:
+            if d["familia"] not in familias:
+                elegidas.append(d)
+                familias.add(d["familia"])
+        return elegidas[:n]
+
+    return {
+        "fuertes": elegir(d for z, d in puntuadas if z >= Z_MINIMO),
+        "debiles": elegir(d for z, d in reversed(puntuadas) if z <= -Z_MINIMO),
+    }
 
 
 # --- Posible 11 y mejores jugadores (alineaciones de Understat) --------------
@@ -228,7 +257,8 @@ def posible_once(lineups: pd.DataFrame, equipo: str, n_partidos: int = 5) -> dic
     """El 11 que más se repite en los últimos `n_partidos` del equipo.
 
     Es una estimación: titularidades, luego si fue titular en el último
-    partido, luego minutos. Un portero obligatorio. Cada jugador va en la
+    partido, luego minutos. Un portero obligatorio: si ninguno fue titular en
+    el tramo, el último que lo fue en la temporada. Cada jugador va en la
     posición de su titularidad más reciente. No sabe de lesiones.
     """
     df = _numerico(lineups)
@@ -252,7 +282,19 @@ def posible_once(lineups: pd.DataFrame, equipo: str, n_partidos: int = 5) -> dic
     resumen = resumen.sort_values(["titularidades", "en_ultimo", "minutos"], ascending=False, kind="mergesort")
 
     porteros = resumen[resumen["posicion"] == "GK"].head(1)
-    once = pd.concat([porteros, resumen[resumen["posicion"] != "GK"].head(10)])
+    if porteros.empty:
+        # Ningún portero titular en el tramo (p. ej. datos incompletos): el
+        # último que lo fue en la temporada. Sin ninguno, 11 de campo.
+        de_temporada = propios[propios["starter"] & (propios["position"] == "GK")]
+        if not de_temporada.empty:
+            ultimo_gk = de_temporada.sort_values("date", kind="mergesort").iloc[-1]
+            porteros = pd.DataFrame(
+                {"nombre": [ultimo_gk["player"]], "posicion": ["GK"], "titularidades": [0],
+                 "minutos": [0], "en_ultimo": [False]},
+                index=pd.Index([ultimo_gk["player_id"]], name="player_id"),
+            )
+    campo = resumen[resumen["posicion"] != "GK"].head(11 - len(porteros))
+    once = pd.concat([porteros, campo])
 
     amarillas = propios.groupby("player_id")["yellow"].sum()
     expulsados = set(propios.loc[(propios["match_id"] == ultimo) & (propios["red"] > 0), "player_id"])
