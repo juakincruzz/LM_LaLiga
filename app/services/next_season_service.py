@@ -16,23 +16,51 @@ import aiosqlite
 import numpy as np
 import pandas as pd
 
-from app.config import get_current_season, get_league_config
-from scripts.data_manager_generic import league_csv_path
+import re
+
+from app.config import get_current_season, get_league_config, season_label
+from core.dataset import load_season, played_only
+from core.errors import PromotedTeamsNotConfiguredError, SeasonInProgressError
 
 # Ratings típicos de un equipo recién ascendido (relativos a media de liga = 1.0)
 PROMOTED_ATTACK = 0.75
 PROMOTED_DEFENSE = 1.25
 
 
+# Los nombres de relleno con que se distribuye config/leagues.yaml
+PROVISIONAL = re.compile(r"^Ascendido \d+$")
+
+
 def _load_season_df(league_code: str, season: str) -> pd.DataFrame:
-    path = league_csv_path(league_code, season)
-    if not path.exists():
-        raise FileNotFoundError(f"No hay datos en {path}. Pulsa 'Actualizar datos' primero.")
-    df = pd.read_csv(path)
-    df = df.dropna(subset=["FTHG", "FTAG", "HomeTeam", "AwayTeam"])
+    """Partidos jugados de la temporada, que tiene que estar TERMINADA.
+
+    Con la temporada a medias, la proyección tomaba los partidos jugados como
+    si fueran la temporada entera, daba por descendidos a los colistas de ese
+    momento y ponía en su lugar a los ascendidos provisionales. Para la
+    temporada en curso está «Simular temporada».
+    """
+    completa = load_season(league_code, season, download=False)  # FileNotFoundError si no hay datos
+    df = played_only(completa)
     if df.empty:
-        raise ValueError(f"El CSV {path} no contiene partidos con resultado.")
+        raise ValueError(f"La temporada {season_label(season)} no tiene partidos con resultado.")
+    pendientes = len(completa) - len(df)
+    if pendientes:
+        raise SeasonInProgressError(
+            f"La temporada {season_label(season)} aún no ha terminado (quedan {pendientes} partidos): "
+            f"la proyección de la siguiente se hace con la temporada completa. "
+            f"Mientras tanto, usa «Simular temporada»."
+        )
     return df
+
+
+def _comprobar_ascendidos(promoted: list[str]) -> None:
+    provisionales = [t for t in promoted if PROVISIONAL.match(t)]
+    if provisionales:
+        raise PromotedTeamsNotConfiguredError(
+            f"Faltan los ascendidos reales: en config/leagues.yaml (next_season.promoted_teams) "
+            f"siguen los provisionales {', '.join(provisionales)}. Pon los nombres de "
+            f"football-data.co.uk de los equipos que suben."
+        )
 
 
 def _team_stats(df: pd.DataFrame) -> dict:
@@ -42,7 +70,7 @@ def _team_stats(df: pd.DataFrame) -> dict:
 
     for _, row in df.iterrows():
         h, a = row["HomeTeam"], row["AwayTeam"]
-        hg, ag = int(row["FTHG"]), int(row["FTAG"])
+        hg, ag = int(row["Home_Goals"]), int(row["Away_Goals"])
         home_goals_total += hg
         away_goals_total += ag
 
@@ -142,6 +170,7 @@ async def project_next_season(
 
     season = season or get_current_season()
     df = _load_season_df(league_code, season)
+    _comprobar_ascendidos(promoted)
     stats, league_avg_home, league_avg_away, league_avg_team = _team_stats(df)
 
     # Descendidos: últimos N según nº de ascendidos configurados

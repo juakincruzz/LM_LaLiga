@@ -1072,6 +1072,30 @@ abbr[title] {
 .forma--E { background: var(--gris); }
 .forma--D { background: var(--rojo-cl); }
 
+/* ---- Clasificación real e historial de aciertos ------------------------- */
+
+.col-forma { white-space: nowrap; }
+.tabla .col-forma .forma { width: 1.2em; margin-right: 1px; }
+
+.historial .mejor { color: var(--verde-cl); font-weight: bold; }
+.acierto { color: var(--verde-cl); }
+.fallo { color: var(--rojo-cl); }
+
+.historial__partidos { margin: 12px 0; }
+.historial__partidos details { border-top: 1px dashed var(--gris-osc); padding: 4px 0; }
+.historial__partidos summary { cursor: pointer; color: var(--amarillo); }
+.historial__partidos summary:focus-visible { outline: 2px solid var(--amarillo); }
+.historial__lista { list-style: none; margin: 6px 0 0; padding: 0; }
+.historial__lista li { display: flex; flex-wrap: wrap; gap: 0 10px; padding: 2px 0; }
+.historial__equipos { min-width: 0; flex: 1 1 260px; }
+.historial__mercado { color: var(--texto-suave); }
+
+@media (max-width: 640px) {
+    .tabla .col-forma,
+    .historial .col-ll,
+    .historial td .nota { display: none; }
+}
+
 /* ---- Pie y barra de teclas (estilo Norton Commander) ------------------- */
 
 .pie {

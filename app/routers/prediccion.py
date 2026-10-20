@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.config import LEAGUE_CODE
 from app.dependencies import get_db_dependency
+from app.services.history_service import historial_async
 from app.services.prediction_service import jornada_async, predecir_partido_async
 from app.templating import templates
 from core.errors import LMLaLigaError
@@ -63,3 +64,14 @@ async def ver_partido(
     except (LMLaLigaError, FileNotFoundError) as e:
         contexto["error"] = _mensaje(e)
     return templates.TemplateResponse(request, "partials/prediccion.html", contexto)
+
+
+@router.get("/historial")
+async def ver_historial(request: Request):
+    """Aciertos del modelo jornada a jornada en la temporada en curso."""
+    contexto = {}
+    try:
+        contexto["h"] = await historial_async(LEAGUE_CODE)
+    except (LMLaLigaError, FileNotFoundError) as e:
+        contexto["error"] = _mensaje(e)
+    return templates.TemplateResponse(request, "partials/historial.html", contexto)

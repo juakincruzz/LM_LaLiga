@@ -19,3 +19,11 @@ class SeasonFinishedError(LMLaLigaError):
 
 class ModelNotTrainedError(LMLaLigaError):
     """No hay modelo entrenado para esta liga."""
+
+
+class SeasonInProgressError(LMLaLigaError):
+    """La temporada aún no ha terminado: proyectar la siguiente no tiene sentido."""
+
+
+class PromotedTeamsNotConfiguredError(LMLaLigaError):
+    """Los ascendidos de config/leagues.yaml siguen siendo los provisionales."""

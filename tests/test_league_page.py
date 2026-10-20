@@ -105,5 +105,33 @@ async def test_clasificacion_lleva_escudos(client, temp_db):
         await db.commit()
 
     resp = await client.get("/")
-    assert resp.text.count('class="escudo"') == 2
-    assert "#00aa00" in resp.text  # el verde del Betis
+    proyeccion = resp.text[resp.text.index('id="t-proyeccion"'):resp.text.index('id="ventana-historial"')]
+    assert proyeccion.count('class="escudo"') == 2
+    assert "#00aa00" in proyeccion  # el verde del Betis
+
+
+async def test_a_mitad_de_temporada_no_se_muestra_una_proyeccion(client, temp_db, media_temporada):
+    """Una proyección de la temporada siguiente guardada a mitad de temporada
+    (se podía lanzar antes de bloquearlo) no sustituye al Monte Carlo actual,
+    y el botón de proyectar sale desactivado."""
+    from app.services.data_service import update_league_data
+
+    def tabla(nombre):
+        return json.dumps([{"name": nombre, "points": 50, "gf": 40, "ga": 30,
+                            "champion_prob": 0.1, "relegation_prob": 0.0}])
+
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        await update_league_data(db, "SP1")
+        for label, equipo in (("Temporada actual", "Barcelona"), ("Proyección 26/27", "Ascendido 1")):
+            await db.execute(
+                "INSERT INTO simulations (league_code, sim_count, standings_json, label, season) "
+                "VALUES ('SP1', 10, ?, ?, '2526')",
+                (tabla(equipo), label),
+            )
+        await db.commit()
+
+    resp = await client.get("/")
+    assert "Ascendido 1" not in resp.text
+    assert "Temporada actual" in resp.text
+    assert "Solo cuando termine la temporada" in resp.text

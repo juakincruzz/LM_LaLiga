@@ -26,7 +26,9 @@
      "bloqueado": not temporada.puede_simular,
      "motivo": "Solo se puede simular si quedan partidos por jugar"},
     {"tecla": "4", "job": "project_next_season", "nombre": "Proyectar " ~ next_season_label, "corto": "Proyecta",
-     "desc": "Tabla probable de la próxima temporada."},
+     "desc": "Tabla probable de la próxima temporada.",
+     "bloqueado": not temporada.puede_proyectar,
+     "motivo": "Solo cuando termine la temporada " ~ temporada_label},
 ] %}
 
 {% block content %}
@@ -93,6 +95,18 @@
 
         <section class="ventana" aria-labelledby="t-clasificacion">
             <h2 id="t-clasificacion" class="ventana__titulo">Clasificación</h2>
+            {% if clasificacion %}
+            <p class="ventana__sub">Real · {{ temporada.jugados }} partidos jugados</p>
+            {% include "partials/clasificacion.html" %}
+            {% elif clasificacion is none %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Pulsa «Actualizar datos» para descargar la temporada.</p>
+            {% else %}
+            <p class="vacio"><span class="vacio__icono" aria-hidden="true">·</span>Aún no se ha jugado ningún partido de la {{ temporada_label }}.</p>
+            {% endif %}
+        </section>
+
+        <section class="ventana" aria-labelledby="t-proyeccion">
+            <h2 id="t-proyeccion" class="ventana__titulo">Proyección final</h2>
             {% if sim_standings %}
             <p class="ventana__sub">
                 {{ sim_label or "Clasificación proyectada" }} · Monte Carlo{% if sim_count %} · {{ sim_count }} simulaciones{% endif %}
@@ -103,9 +117,16 @@
             {% else %}
             <p class="vacio">
                 <span class="vacio__icono" aria-hidden="true">?</span>
-                Entrena un modelo y ejecuta una simulación (o una proyección) para ver la clasificación.
+                Entrena un modelo y ejecuta una simulación (o una proyección) para ver cómo puede acabar la temporada.
             </p>
             {% endif %}
+        </section>
+
+        <section class="ventana" id="ventana-historial" aria-labelledby="t-historial">
+            <h2 id="t-historial" class="ventana__titulo">Historial de aciertos</h2>
+            <div id="historial" hx-get="/prediccion/historial" hx-trigger="load" hx-swap="innerHTML">
+                <p class="nota">Calculando el historial<span class="cursor" aria-hidden="true">_</span></p>
+            </div>
         </section>
     </div>
 
@@ -168,15 +189,26 @@
             </ul>
             <dl class="datos">
                 {% if modelo.logloss is not none %}
-                <div><dt>Log-loss</dt><dd>{{ "%.3f"|format(modelo.logloss) }}</dd></div>
+                <div><dt>Log-loss modelo</dt><dd>{{ "%.3f"|format(modelo.logloss) }}</dd></div>
+                {% if modelo.logloss_bookmaker is not none %}
+                <div><dt>Log-loss mercado</dt><dd>{{ "%.3f"|format(modelo.logloss_bookmaker) }}</dd></div>
+                {% endif %}
+                {% if modelo.logloss_frequencies is not none %}
+                <div><dt>Log-loss sin saber nada</dt><dd>{{ "%.3f"|format(modelo.logloss_frequencies) }}</dd></div>
+                {% endif %}
                 <div><dt>Brier</dt><dd>{{ "%.3f"|format(modelo.brier) }}</dd></div>
                 {% endif %}
                 <div><dt>Entrenamiento</dt><dd>{{ modelo.n_train }}</dd></div>
                 <div><dt>Test</dt><dd>{{ modelo.n_test }}</dd></div>
             </dl>
             <p class="nota">
-                {% if modelo.test_period %}Test: {{ modelo.test_period }}.{% endif %}
-                {% if modelo.seasons_used %}Temporadas: {{ modelo.seasons_used|temporadas }}.{% endif %}
+                {% if modelo.logloss_frequencies is not none %}
+                La log-loss mide la calidad de las probabilidades: cuanto más baja, mejor.
+                Test: {{ modelo.test_period }}, cada temporada predicha con un modelo entrenado solo
+                con las anteriores.
+                {% elif modelo.test_period %}Test: {{ modelo.test_period }}.{% endif %}
+                {% if modelo.seasons_used %}{% set ts = modelo.seasons_used.split(",") %}
+                Historia: {{ ts[0]|temporadas }} → {{ ts[-1]|temporadas }}.{% endif %}
             </p>
             <p class="nota">
                 Predecir fútbol tiene un techo real en torno al 53–55 %, el de las casas

@@ -11,6 +11,7 @@ from fastapi.responses import RedirectResponse
 from app.config import LEAGUE_CODE, get_current_season, get_league_config, season_label
 from app.dependencies import get_db_dependency
 from app.services.season_state import get_season_state
+from app.services.standings_service import clasificacion_actual_async
 from app.templating import templates
 from core.equipos import nombre_visible
 
@@ -28,15 +29,19 @@ async def portada(request: Request, db=Depends(get_db_dependency)):
 
     # Última simulación hecha DESDE la temporada actual. `label` distingue el
     # Monte Carlo de la temporada en curso de la proyección de la siguiente.
+    # Con partidos pendientes solo vale el Monte Carlo de la temporada: una
+    # proyección de la siguiente hecha a mitad de temporada (antes se podía)
+    # no se muestra.
     cursor = await db.execute(
         """
         SELECT standings_json, label, sim_count, created_at
           FROM simulations
          WHERE league_code = ? AND season = ?
+           AND (? OR label = 'Temporada actual')
          ORDER BY id DESC
          LIMIT 1
         """,
-        (LEAGUE_CODE, get_current_season()),
+        (LEAGUE_CODE, get_current_season(), temporada.es_offseason),
     )
     sim_row = await cursor.fetchone()
 
@@ -46,7 +51,8 @@ async def portada(request: Request, db=Depends(get_db_dependency)):
     cursor = await db.execute(
         """
         SELECT accuracy, baseline_home, baseline_majority, baseline_bookmaker,
-               logloss, brier, seasons_used, n_train, n_test, test_period,
+               logloss, brier, logloss_bookmaker, logloss_frequencies,
+               seasons_used, n_train, n_test, test_period,
                model_type, created_at
           FROM model_runs
          WHERE league_code = ? AND status = 'completed' AND baseline_home IS NOT NULL
@@ -69,6 +75,8 @@ async def portada(request: Request, db=Depends(get_db_dependency)):
     )
     equipos = sorted((row["name"] for row in await cursor.fetchall()), key=nombre_visible)
 
+    clasificacion = await clasificacion_actual_async(LEAGUE_CODE)
+
     return templates.TemplateResponse(
         request,
         "liga.html",
@@ -84,6 +92,7 @@ async def portada(request: Request, db=Depends(get_db_dependency)):
             "sim_count": sim_row["sim_count"] if sim_row else None,
             "next_season_label": config.get("next_season", {}).get("label", "próxima temporada"),
             "equipos": equipos,
+            "clasificacion": clasificacion,
         },
     )
 

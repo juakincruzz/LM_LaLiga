@@ -10,12 +10,18 @@ import pytest
 
 
 @pytest.mark.slow
-async def test_pipeline_completo_sp1(client, temp_db):
+async def test_pipeline_completo_sp1(client, temp_db, monkeypatch):
     """Actualizar datos → entrenar → proyectar, y comprobar lo que ve el usuario."""
+    from app.config import get_league_config
+
+    # La proyección rechaza los «Ascendido N» con que se distribuye la config
+    monkeypatch.setitem(
+        get_league_config("SP1")["next_season"], "promoted_teams", ["La Coruna", "Malaga", "Santander"]
+    )
     # 1. Actualizar datos (descarga real)
     job_id = await _lanzar(client, "update_data", "SP1")
     job = await _esperar(client, job_id, max_wait=60)
-    assert "partidos" in (job["message"] or "")
+    assert "jugados" in (job["message"] or "")
 
     # 2. Entrenar. La accuracy debe ser honesta, no la del conjunto de entrenamiento.
     job_id = await _lanzar(client, "train", "SP1")

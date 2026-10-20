@@ -1,0 +1,48 @@
+{# Clasificación real: partidos jugados de la temporada en curso, de LeagueState. #}
+{% set n = clasificacion|length %}
+{% set descensos = liga.relegated or 3 %}
+<div class="tabla-scroll">
+<table class="tabla">
+    <caption class="sr-only">Clasificación real de la temporada {{ temporada_label }}</caption>
+    <thead>
+        <tr>
+            <th scope="col" class="pos"><abbr title="Posición">#</abbr></th>
+            <th scope="col" class="equipo">Equipo</th>
+            <th scope="col"><abbr title="Partidos jugados">PJ</abbr></th>
+            <th scope="col"><abbr title="Victorias">V</abbr></th>
+            <th scope="col"><abbr title="Empates">E</abbr></th>
+            <th scope="col"><abbr title="Derrotas">D</abbr></th>
+            <th scope="col"><abbr title="Goles a favor">GF</abbr></th>
+            <th scope="col"><abbr title="Goles en contra">GC</abbr></th>
+            <th scope="col"><abbr title="Diferencia de goles">DG</abbr></th>
+            <th scope="col"><abbr title="Puntos">Pts</abbr></th>
+            <th scope="col" class="col-forma">Forma</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in clasificacion %}
+        {% set zona = "champions" if loop.index <= 4 else ("europa" if loop.index <= 6 else ("descenso" if loop.index > n - descensos else "")) %}
+        <tr class="{{ 'zona-' ~ zona if zona }}">
+            <td class="pos">{{ t.posicion }}</td>
+            <th scope="row"><a class="enlace-equipo" href="/equipo/{{ t.equipo|urlencode }}">{{ escudo(t.equipo, 16) }}{{ t.equipo|equipo }}</a></th>
+            <td>{{ t.pj }}</td>
+            <td>{{ t.v }}</td>
+            <td>{{ t.e }}</td>
+            <td>{{ t.d }}</td>
+            <td>{{ t.gf }}</td>
+            <td>{{ t.gc }}</td>
+            <td>{{ "+" if t.dg > 0 }}{{ t.dg }}</td>
+            <td class="pts">{{ t.puntos }}</td>
+            <td class="col-forma" aria-label="Últimos resultados: {{ t.forma|join(', ') }}">{% for r in t.forma %}<span class="forma forma--{{ r }}" aria-hidden="true">{{ r }}</span>{% endfor %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<ul class="leyenda">
+    <li><i class="leyenda__champions" aria-hidden="true"></i>Champions</li>
+    <li><i class="leyenda__europa" aria-hidden="true"></i>Europa</li>
+    <li><i class="leyenda__descenso" aria-hidden="true"></i>Descenso</li>
+</ul>
+<p class="nota">Empates a puntos: por diferencia de goles y goles a favor. El reglamento de la Liga
+desempata primero por los enfrentamientos directos, así que con empates la posición puede variar.</p>

@@ -46,6 +46,11 @@ class ResumenTemporada:
         return self.pendientes > 0
 
     @property
+    def puede_proyectar(self) -> bool:
+        """Proyectar la siguiente temporada solo con la actual terminada."""
+        return self.estado is EstadoTemporada.FINALIZADA
+
+    @property
     def es_offseason(self) -> bool:
         return self.estado in (EstadoTemporada.FINALIZADA, EstadoTemporada.SIN_DATOS)
 

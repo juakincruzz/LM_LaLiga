@@ -1,0 +1,82 @@
+{% macro pct(v) -%}{{ "%.0f"|format(v * 100) }} %{%- endmacro %}
+{% macro ll(v) -%}{{ "%.3f"|format(v) if v is not none else "—" }}{%- endmacro %}
+
+{% if error %}
+<p class="vacio"><span class="vacio__icono" aria-hidden="true">!</span>{{ error }}</p>
+{% elif not h.jornadas %}
+<p class="vacio"><span class="vacio__icono" aria-hidden="true">?</span>Aún no se ha jugado ningún partido esta temporada.</p>
+{% else %}
+{% set t = h.total %}
+<p class="marcador">
+    <span class="marcador__num">{{ t.aciertos_modelo }}/{{ t.partidos }}</span>
+    <span class="marcador__lbl">Favoritos acertados por el modelo · {{ pct(t.acierto_modelo) }}</span>
+</p>
+<ul class="barras" aria-label="Acierto del modelo frente al mercado">
+    <li class="es-modelo"><span>Modelo</span><span class="valor">{{ pct(t.acierto_modelo) }}</span>
+        <span class="barra" aria-hidden="true"><i style="width: {{ '%.1f'|format([t.acierto_modelo / 0.70 * 100, 100]|min) }}%"></i></span></li>
+    {% if t.acierto_mercado is not none %}
+    <li><span>Casas de apuestas</span><span class="valor">{{ pct(t.acierto_mercado) }}</span>
+        <span class="barra" aria-hidden="true"><i style="width: {{ '%.1f'|format([t.acierto_mercado / 0.70 * 100, 100]|min) }}%"></i></span></li>
+    {% endif %}
+</ul>
+<p class="nota">
+    Log-loss (calidad de las probabilidades; más baja, mejor): modelo <b>{{ ll(t.logloss_modelo) }}</b>,
+    mercado <b>{{ ll(t.logloss_mercado) }}</b>.
+</p>
+
+<div class="tabla-scroll">
+<table class="tabla historial">
+    <caption class="sr-only">Aciertos del modelo y del mercado por jornada</caption>
+    <thead>
+        <tr>
+            <th scope="col"><abbr title="Jornada">J.</abbr></th>
+            <th scope="col"><abbr title="Partidos jugados">PJ</abbr></th>
+            <th scope="col">Modelo</th>
+            <th scope="col">Mercado</th>
+            <th scope="col" class="col-ll"><abbr title="Log-loss del modelo">LL modelo</abbr></th>
+            <th scope="col" class="col-ll"><abbr title="Log-loss del mercado">LL mercado</abbr></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for j in h.jornadas|reverse %}
+        <tr>
+            <th scope="row">{{ j.numero or "—" }}</th>
+            <td>{{ j.partidos }}</td>
+            <td>{{ j.aciertos_modelo }} <span class="nota">({{ pct(j.acierto_modelo) }})</span></td>
+            <td>{% if j.aciertos_mercado is not none %}{{ j.aciertos_mercado }} <span class="nota">({{ pct(j.acierto_mercado) }})</span>{% else %}—{% endif %}</td>
+            <td class="col-ll{{ ' mejor' if j.logloss_mercado is not none and j.logloss_modelo < j.logloss_mercado }}">{{ ll(j.logloss_modelo) }}</td>
+            <td class="col-ll">{{ ll(j.logloss_mercado) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="historial__partidos">
+    {% for j in h.jornadas|reverse %}
+    <details>
+        <summary>Partidos de la jornada {{ j.numero or "—" }}</summary>
+        <ul class="historial__lista">
+            {% for p in j.partidos_detalle %}
+            <li>
+                <span class="historial__equipos">{{ p.local|equipo }} {{ p.marcador }} {{ p.visitante|equipo }}</span>
+                <span class="{{ 'acierto' if p.modelo_ok else 'fallo' }}">
+                    Modelo {{ p.modelo }} ({{ pct(p.p_modelo) }}) {{ "✓" if p.modelo_ok else "✗" }}
+                </span>
+                {% if p.mercado %}
+                <span class="historial__mercado">mercado {{ p.mercado }} {{ "✓" if p.mercado_ok == 1 else "✗" }}</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endfor %}
+</div>
+
+<p class="nota">
+    Cada partido se predice con un modelo entrenado solo con temporadas anteriores y con lo
+    que se sabía justo antes de jugarse: el modelo no conocía ninguno de estos resultados.
+    Las cuotas son solo la referencia, no una entrada del modelo. En la columna «LL modelo»,
+    en verde las jornadas en que el modelo superó al mercado.
+</p>
+{% endif %}
