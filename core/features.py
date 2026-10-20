@@ -12,32 +12,15 @@ from core.state import LeagueState
 # Orden canónico de las features. El modelo se entrena y predice con este orden,
 # así que cambiarlo invalida los .pkl guardados: hay que reentrenar.
 FEATURE_COLS = [
-    # Estadísticas generales acumuladas
-    "Home_Matches", "Away_Matches",
-    "Home_Win_Rate", "Away_Win_Rate",
-    "Home_Points_Per_Game", "Away_Points_Per_Game",
-    "Home_Goals_For_Avg", "Away_Goals_For_Avg",
-    "Home_Goals_Against_Avg", "Away_Goals_Against_Avg",
+    # Elo (arrastrado entre temporadas con regresión a la media)
+    "Home_Elo", "Away_Elo", "Elo_Diff",
 
-    # Forma reciente
-    "Home_Form_3", "Away_Form_3",
-    "Home_Form_5", "Away_Form_5",
-
-    # Rendimiento local/visitante específico
-    "Home_Home_Win_Rate", "Away_Away_Win_Rate",
-    "Home_Home_Points_Per_Game", "Away_Away_Points_Per_Game",
-    "Home_Home_Goals_For_Avg", "Away_Away_Goals_For_Avg",
-    "Home_Home_Goals_Against_Avg", "Away_Away_Goals_Against_Avg",
-    "Home_Home_Form_3", "Away_Away_Form_3",
-
-    # Diferencias y factor campo
-    "Points_Diff", "Win_Rate_Diff",
-    "Goals_For_Diff", "Goals_Against_Diff",
-    "Form_5_Diff", "Home_Advantage",
-
-    # Descanso y enfrentamientos directos
-    "Home_Days_Rest", "Away_Days_Rest",
-    "H2H_Matches", "H2H_Home_Points_Per_Game", "H2H_Home_Win_Rate",
+    # Forma continua: medias exponenciales sin reinicio de temporada
+    "Home_EW_Goals_For", "Home_EW_Goals_Against",
+    "Home_EW_SoT_For", "Home_EW_SoT_Against",
+    "Away_EW_Goals_For", "Away_EW_Goals_Against",
+    "Away_EW_SoT_For", "Away_EW_SoT_Against",
+    "EW_Goal_Diff", "EW_SoT_Diff",
 ]
 
 TARGET_MAP = {"H": 1, "D": 0, "A": -1}
@@ -49,7 +32,7 @@ def feature_row(state: LeagueState, home_team: str, away_team: str, current_date
 
 
 def feature_vector(state: LeagueState, home_team: str, away_team: str, current_date) -> np.ndarray:
-    """Igual que `feature_row` pero como array 1x35.
+    """Igual que `feature_row` pero como array 1×len(FEATURE_COLS).
 
     Es lo que usa el simulador: construir un DataFrame por partido hacía que la
     conversión a XGBoost costara más que la propia predicción.
@@ -79,6 +62,8 @@ def _recorrer(df: pd.DataFrame, state: LeagueState, reset_per_season: bool):
             int(row.Away_Goals),
             row.Result,
             row.Date,
+            getattr(row, "Home_ShotsOnTarget", None),
+            getattr(row, "Away_ShotsOnTarget", None),
         )
 
 
@@ -94,9 +79,8 @@ def build_state(df: pd.DataFrame, reset_per_season: bool = True) -> LeagueState:
     semántica de cambio de temporada que `build_training_matrix`.
 
     Es lo que hay que usar para predecir o simular: un estado construido solo
-    con la temporada actual no tiene el historial H2H que el modelo sí vio al
-    entrenar (el simulador llegó a ver 0 enfrentamientos previos donde el
-    entrenamiento veía ~2,9).
+    con la temporada actual no tiene el Elo ni la forma que el modelo sí vio
+    al entrenar.
     """
     state = LeagueState()
     for _ in _recorrer(_ordenar(df), state, reset_per_season):

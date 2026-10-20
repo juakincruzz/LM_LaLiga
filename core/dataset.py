@@ -55,8 +55,9 @@ def normalize_frame(df: pd.DataFrame, season: str | None = None) -> pd.DataFrame
     if missing:
         raise ValueError(f"El CSV no tiene las columnas {missing}; ¿se descargó una página de error?")
 
-    # football-data.co.uk usa DD/MM/YYYY
-    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
+    # football-data.co.uk usa DD/MM/YYYY, y DD/MM/YY hasta la 16/17. "mixed"
+    # acepta los dos sin el aviso de pandas por no poder inferir un formato.
+    df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce", format="mixed")
     df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam"])
 
     for col in ("Home_Goals", "Away_Goals"):

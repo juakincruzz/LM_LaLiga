@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 import numpy as np
 import pandas as pd
 
-from app.config import get_current_season, get_training_seasons
+from app.config import get_current_season, get_league_config, get_training_seasons
 from core.features import build_state, feature_row, feature_vector
 from core.goals import sample_scoreline
 from core.state import LeagueState
@@ -80,8 +80,9 @@ class SeasonSimulator:
 
         Se hace UNA vez y luego se clona con snapshot() en cada simulación: antes
         cada una de las n_sims volvía a reproducir los 380 partidos jugados.
-        Solo ve los partidos que recibe; para el historial completo (H2H de
-        temporadas anteriores) usa `build_current_state` y pasa `base_state`.
+        Solo ve los partidos que recibe; para el historial completo (Elo y
+        forma de temporadas anteriores) usa `build_current_state` y pasa
+        `base_state`.
         """
         return build_state(played, reset_per_season=False)
 
@@ -127,8 +128,11 @@ class SeasonSimulator:
         return self.simulate_remaining(remaining, predictor, stochastic=stochastic, rng=rng)
 
     def monte_carlo_simulation(self, df, predictor, n_sims=1000, start_date=None, verbose=True,
-                               rng=None, on_progress=None, base_state=None):
-        """Repite la simulación n_sims veces y acumula probabilidades."""
+                               rng=None, on_progress=None, base_state=None, n_relegated=3):
+        """Repite la simulación n_sims veces y acumula probabilidades.
+
+        `n_relegated`: plazas de descenso (`relegated` en config/leagues.yaml).
+        """
         if verbose:
             print(f"\n🎲 Iniciando Monte Carlo con {n_sims} simulaciones...")
 
@@ -150,7 +154,7 @@ class SeasonSimulator:
             champions.append(standings.iloc[0]['Team'])
             for team in standings.head(4)['Team']:
                 top4[team] += 1
-            for team in standings.tail(3)['Team']:
+            for team in standings.tail(n_relegated)['Team']:
                 relegation[team] += 1
             for row in standings.itertuples(index=False):
                 all_final_points[row.Team].append(row.Points)
@@ -190,9 +194,9 @@ class SeasonSimulator:
 def build_current_state(league_code: str, season: str | None = None):
     """Estado de la liga hoy, con la MISMA historia con la que se entrena.
 
-    Recorre las temporadas de entrenamiento anteriores (conservando el H2H y
-    reseteando acumuladores en cada cambio, como `build_training_matrix`) y
-    después los partidos ya jugados de la temporada actual. Devuelve
+    Recorre las temporadas de entrenamiento anteriores (arrastrando Elo y
+    forma, y reseteando la tabla en cada cambio, como `build_training_matrix`)
+    y después los partidos ya jugados de la temporada actual. Devuelve
     (estado, df de la temporada actual con jugados y pendientes).
     """
     from core.dataset import load_season, load_seasons, played_only
@@ -258,7 +262,7 @@ def simulate_season(
     # más probabilidad de título que el 3.º.
     mc_results = SeasonSimulator().monte_carlo_simulation(
         df, predictor, n_sims=n_sims, verbose=False, rng=rng, on_progress=on_progress,
-        base_state=base_state,
+        base_state=base_state, n_relegated=get_league_config(league_code).get("relegated", 3),
     )
     champion_probs = mc_results['champion_probabilities']
     relegation_probs = mc_results['relegation_probabilities']

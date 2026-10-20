@@ -2,29 +2,26 @@
 
 Antes esta función entrenaba con todos los partidos y medía la accuracy sobre
 esos mismos partidos: reportaba ~0,99 donde lo real fuera de muestra era ~0,52.
-Ahora entrena sobre varias temporadas (ver app.config.get_training_seasons),
-reserva la temporada actual como test, y guarda junto a la accuracy tres
-baselines de referencia: "siempre gana el local", la clase mayoritaria del
-entrenamiento, y lo que ya acierta el mercado de apuestas.
+
+Ahora las métricas son walk-forward (core.evaluation): las últimas
+temporadas se predicen cada una con un modelo entrenado solo con las
+anteriores. El modelo que se guarda, en cambio, se entrena con TODO lo jugado,
+temporada actual incluida: para predecir la próxima jornada no hay motivo para
+esconderle los partidos de este año. Junto a las métricas se guardan las
+referencias: "siempre local", la clase mayoritaria, el mercado de apuestas
+(acierto y log-loss) y las frecuencias de resultados (log-loss de no saber nada).
 """
 import asyncio
 from datetime import datetime
 
 import aiosqlite
+import numpy as np
 import pandas as pd
 
-from app.config import get_training_seasons
-from core.evaluation import EvaluationReport, evaluate_predictions, season_train_test_split
+from app.config import EXCLUDED_SEASONS, get_current_season, get_training_seasons, season_label
+from core.evaluation import Fold, evaluate_walk_forward, walk_forward_splits
 from models.predictor import LeaguePredictor
 from scripts.preprocess_generic import preprocess_league
-
-
-def _probabilidades(predictor: LeaguePredictor, proba_row) -> tuple[float, float, float]:
-    """(local, empate, visitante), indexando por model.classes_ — no por
-    posición, para no asignar una probabilidad a la clase equivocada si
-    alguna faltara en el entrenamiento."""
-    prob = predictor._probs_by_outcome(proba_row)
-    return prob.get(1, 0.0), prob.get(0, 0.0), prob.get(-1, 0.0)
 
 
 async def _guardar_predicciones(
@@ -32,10 +29,10 @@ async def _guardar_predicciones(
     run_id: int,
     league_code: str,
     df_test: pd.DataFrame,
-    X_test: pd.DataFrame,
-    predictor: LeaguePredictor,
+    proba: np.ndarray,
 ) -> int:
-    """Persiste las predicciones del conjunto de test, enlazadas a `matches`."""
+    """Persiste las predicciones walk-forward, enlazadas a `matches` (solo
+    las de temporadas ingeridas en la BD encuentran su partido)."""
     cursor = await db.execute(
         """
         SELECT m.id, m.date, h.name AS home, a.name AS away
@@ -50,17 +47,13 @@ async def _guardar_predicciones(
     if not match_ids:
         return 0  # todavía no se ha pulsado 'Actualizar datos'
 
-    probas = predictor.model.predict_proba(X_test)
-
     filas = []
-    for (_, fila), proba_row in zip(df_test.iterrows(), probas):
-        clave = (fila["Date"].date().isoformat(), fila["HomeTeam"], fila["AwayTeam"])
-        match_id = match_ids.get(clave)
+    for fila, (p_away, p_draw, p_home) in zip(df_test.itertuples(index=False), proba):
+        match_id = match_ids.get((fila.Date.date().isoformat(), fila.HomeTeam, fila.AwayTeam))
         if match_id is None:
             continue
-        p_home, p_draw, p_away = _probabilidades(predictor, proba_row)
         predicho = max((p_home, "H"), (p_draw, "D"), (p_away, "A"))[1]
-        filas.append((run_id, match_id, predicho, p_home, p_draw, p_away))
+        filas.append((run_id, match_id, predicho, float(p_home), float(p_draw), float(p_away)))
 
     await db.executemany(
         """
@@ -75,32 +68,44 @@ async def _guardar_predicciones(
 
 def _entrenar_y_evaluar(league_code: str):
     """Todo el trabajo de CPU en una función síncrona: descarga de temporadas
-    históricas, features y entrenamiento, con un único asyncio.to_thread."""
+    históricas, features, walk-forward y modelo final, con un único
+    asyncio.to_thread."""
     seasons = get_training_seasons(league_code)
     X, y, df = preprocess_league(league_code, seasons)
-    X_train, X_test, y_train, y_test, df_train, df_test = season_train_test_split(df, X, y, seasons)
 
+    actual = get_current_season()
+    folds, previo = [], None
+    for season, train, test in walk_forward_splits(df, seasons, excluded=EXCLUDED_SEASONS):
+        modelo = LeaguePredictor(league_code)
+        modelo.train_xgboost(X[train], y[train])
+        folds.append(Fold(season, y[train], y[test], modelo.proba_ordenada(X[test]), df[test]))
+        if season == actual:
+            previo = modelo
+
+    # Modelo del historial de aciertos: solo temporadas anteriores a la actual
+    # (es el corte walk-forward de la actual; si aún no tiene partidos, se
+    # entrena aparte). Así el historial predice cada partido sin haberlo visto.
+    if previo is None:
+        anteriores = (df["Season"] != actual).to_numpy() & ~df["Season"].isin(EXCLUDED_SEASONS).to_numpy()
+        if anteriores.any():
+            previo = LeaguePredictor(league_code)
+            previo.train_xgboost(X[anteriores], y[anteriores])
+    if previo is not None:
+        previo.save_model(previo.history_model_path)
+
+    # Modelo final: todo lo jugado, salvo las temporadas excluidas
+    entrena = ~df["Season"].isin(EXCLUDED_SEASONS).to_numpy()
     predictor = LeaguePredictor(league_code)
-    predictor.train_xgboost(X_train, y_train)
+    predictor.train_xgboost(X[entrena], y[entrena])
 
-    proba = predictor.model.predict_proba(X_test)
-    y_pred_encoded = proba.argmax(axis=1)
-    clases = list(predictor.model.classes_)
-
-    reporte = evaluate_predictions(
-        y_train=y_train,
-        y_test=y_test,
-        y_pred_encoded=y_pred_encoded,
-        proba=proba,
-        classes=clases,
-        df_test=df_test,
-        encode=predictor._encode_target,
-    )
-
+    reporte = evaluate_walk_forward(folds, n_train=int(entrena.sum()), label=season_label)
     predictor.accuracy = reporte.accuracy
     predictor.save_model()
 
-    return predictor, reporte, df_test, X_test, seasons
+    df_test = pd.concat([f.df_test for f in folds], ignore_index=True)
+    proba = np.vstack([f.proba for f in folds])
+    usadas = [s for s in seasons if s not in EXCLUDED_SEASONS]
+    return predictor, reporte, df_test, proba, usadas
 
 
 async def train_league_model(db: aiosqlite.Connection, league_code: str) -> tuple[int, float]:
@@ -113,7 +118,7 @@ async def train_league_model(db: aiosqlite.Connection, league_code: str) -> tupl
     `model_runs` marcada 'running' para siempre — el error lo captura el
     `job_status.log` del job, que es donde se busca de todos modos.
     """
-    predictor, reporte, df_test, X_test, seasons = await asyncio.to_thread(
+    predictor, reporte, df_test, proba, seasons = await asyncio.to_thread(
         _entrenar_y_evaluar, league_code
     )
 
@@ -122,20 +127,22 @@ async def train_league_model(db: aiosqlite.Connection, league_code: str) -> tupl
         INSERT INTO model_runs
             (league_code, created_at, status, model_type, seasons_used,
              accuracy, baseline_home, baseline_majority, baseline_bookmaker,
-             logloss, brier, n_train, n_test, test_period)
-        VALUES (?, ?, 'completed', 'xgboost', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             logloss, brier, logloss_bookmaker, logloss_frequencies,
+             n_train, n_test, test_period)
+        VALUES (?, ?, 'completed', 'xgboost', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             league_code, datetime.now().isoformat(), ",".join(seasons),
             reporte.accuracy, reporte.baseline_home, reporte.baseline_majority,
             reporte.baseline_bookmaker, reporte.logloss, reporte.brier,
+            reporte.logloss_bookmaker, reporte.logloss_frequencies,
             reporte.n_train, reporte.n_test, reporte.test_period,
         ),
     )
     await db.commit()
     run_id = cursor.lastrowid
 
-    await _guardar_predicciones(db, run_id, league_code, df_test, X_test, predictor)
+    await _guardar_predicciones(db, run_id, league_code, df_test, proba)
     await db.commit()
 
     return run_id, reporte.accuracy

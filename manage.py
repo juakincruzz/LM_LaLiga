@@ -47,6 +47,10 @@ async def cmd_train(db: aiosqlite.Connection, args: argparse.Namespace) -> None:
     if run["baseline_bookmaker"] is not None:
         print(f"  baseline casas de apuestas: {run['baseline_bookmaker']:.1%}")
     print(f"  log-loss {run['logloss']:.3f} · Brier {run['brier']:.3f}")
+    if run.get("logloss_frequencies") is not None:
+        mercado = run.get("logloss_bookmaker")
+        print(f"  log-loss mercado {mercado:.3f} · sin saber nada {run['logloss_frequencies']:.3f}"
+              if mercado is not None else f"  log-loss sin saber nada {run['logloss_frequencies']:.3f}")
     print(f"  {run['n_train']} train / {run['n_test']} test ({run['test_period']})")
     print(f"  temporadas: {run['seasons_used']}")
 

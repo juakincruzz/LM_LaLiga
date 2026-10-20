@@ -19,8 +19,8 @@ LEAGUE_CONFIG: Dict[str, Any] = _RAW_CONFIG
 LEAGUE_CODE = "SP1"
 
 # Temporada 2020-21: estadios vacíos por la pandemia distorsionaron la ventaja
-# de campo (una de las 35 features), así que se excluye del entrenamiento
-# aunque caiga dentro de la profundidad histórica configurada.
+# de campo, así que se excluye del entrenamiento (sus partidos sí cuentan para
+# el Elo y la forma: ver core.features.build_training_matrix).
 EXCLUDED_SEASONS = {"2021"}
 
 
@@ -63,15 +63,21 @@ def previous_season(code: str) -> str:
 def get_training_seasons(league_code: str | None = None) -> list[str]:
     """Temporadas a usar para entrenar, de la más antigua a la actual.
 
-    `history_depth` temporadas anteriores + la actual, salvo las excluidas
-    (ver EXCLUDED_SEASONS). `league_code` no se usa: se acepta para no
-    cambiar la firma que usan los servicios.
+    Desde `first_season` hasta la actual: con más historia el modelo mejora
+    (estudio de fiabilidad, docs/ROADMAP.md §2). `league_code` no se usa: se
+    acepta para no cambiar la firma que usan los servicios.
     """
-    depth = DEFAULTS.get("history_depth", 5)
+    primera = DEFAULTS.get("first_season", "1415")
     seasons = []
     code = get_current_season()
-    for _ in range(depth + 1):
-        if code not in EXCLUDED_SEASONS:
-            seasons.append(code)
+    while True:
+        seasons.append(code)
+        if code == primera or len(seasons) > 50:
+            break
         code = previous_season(code)
     return list(reversed(seasons))
+
+
+def is_excluded(season: str) -> bool:
+    """Temporadas cuyos partidos no se usan como ejemplos de entrenamiento."""
+    return season in EXCLUDED_SEASONS

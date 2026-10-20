@@ -79,3 +79,16 @@ def test_monte_carlo_no_reproduce_los_partidos_jugados_en_cada_simulacion(media_
 
     # Modificar la copia no toca el estado base reutilizable
     assert base.team("Barcelona").total.matches != copia.team("Barcelona").total.matches
+
+
+async def test_simular_sin_modelo_es_model_not_trained(temp_db):
+    import aiosqlite
+    import pytest
+
+    from app.services.simulation_service import run_simulation
+    from core.errors import ModelNotTrainedError
+
+    async with aiosqlite.connect(temp_db) as db:
+        db.row_factory = aiosqlite.Row
+        with pytest.raises(ModelNotTrainedError):
+            await run_simulation(db, "SP1")

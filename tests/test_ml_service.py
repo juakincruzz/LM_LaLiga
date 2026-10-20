@@ -26,18 +26,21 @@ async def test_accuracy_es_fuera_de_muestra(temp_db, mock_download):
     # Un modelo de resultados de fútbol no pasa del ~55 % fuera de muestra
     assert 0.30 <= accuracy <= 0.65, f"accuracy sospechosa: {accuracy}"
     assert run["status"] == "completed"
-    # 5 temporadas de fixture (2122..2526): las 4 anteriores entrenan, la
-    # actual (2526, la que ingiere update_league_data) es el test.
-    assert run["n_train"] == 1520 and run["n_test"] == 380
+    # 5 temporadas de fixture (2122..2526). Walk-forward: las 4 últimas se
+    # predicen cada una con las anteriores; el modelo final entrena con todo.
+    assert run["n_train"] == 1900 and run["n_test"] == 1520
     assert run["seasons_used"] == "2122,2223,2324,2425,2526"
+    assert run["test_period"] == "22/23 · 23/24 · 24/25 · 25/26"
     assert run["baseline_home"] is not None
     assert run["baseline_majority"] is not None
     assert run["logloss"] is not None and run["brier"] is not None
-    assert run["test_period"]
+    assert run["logloss_bookmaker"] is not None and run["logloss_frequencies"] is not None
+    # Un modelo con algo de información mejora a «no saber nada»
+    assert run["logloss"] < run["logloss_frequencies"]
 
-    # Las predicciones del test se persisten y quedan enlazadas a matches
-    # (solo la temporada actual está en `matches`, que es justo la de test)
-    assert n_predicciones == run["n_test"]
+    # Las predicciones se persisten enlazadas a matches: solo la temporada
+    # actual está en `matches` (la que ingiere update_league_data)
+    assert n_predicciones == 380
 
 
 async def test_probabilidades_suman_uno(temp_db, mock_download):

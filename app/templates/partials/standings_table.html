@@ -1,5 +1,7 @@
-{# Zonas de La Liga: 1–4 Champions, 5–6 competiciones europeas, últimos 3 descenso. #}
+{# Zonas de La Liga: 1–4 Champions, 5–6 competiciones europeas, descenso
+   según `relegated` en config/leagues.yaml. #}
 {% set n = standings|length %}
+{% set descensos = liga.relegated or 3 %}
 <div class="tabla-scroll">
 <table class="tabla">
     <caption class="sr-only">Clasificación proyectada con probabilidades de título y descenso</caption>
@@ -17,7 +19,7 @@
     </thead>
     <tbody>
         {% for team in standings %}
-        {% set zona = "champions" if loop.index <= 4 else ("europa" if loop.index <= 6 else ("descenso" if loop.index > n - 3 else "")) %}
+        {% set zona = "champions" if loop.index <= 4 else ("europa" if loop.index <= 6 else ("descenso" if loop.index > n - descensos else "")) %}
         {% set dg = team.gf - team.ga %}
         <tr class="{{ 'zona-' ~ zona if zona }}">
             <td class="pos">{{ loop.index }}</td>

@@ -93,3 +93,23 @@ async def test_segundo_job_muestra_que_espera_turno(temp_db, monkeypatch):
 
     liberar.set()
     await asyncio.wait_for(asyncio.gather(tarea1, tarea2), timeout=2)
+
+
+async def test_al_arrancar_los_trabajos_interrumpidos_quedan_fallidos(temp_db):
+    """Tras un reinicio nadie termina un trabajo 'running': se marca fallido."""
+    import aiosqlite
+
+    from app.database import mark_interrupted_jobs
+
+    async with aiosqlite.connect(temp_db) as db:
+        for estado in ("running", "queued", "done"):
+            await db.execute(
+                "INSERT INTO job_status (job_type, league_code, status) VALUES ('train', 'SP1', ?)", (estado,)
+            )
+        await db.commit()
+
+    assert await mark_interrupted_jobs() == 2
+
+    async with aiosqlite.connect(temp_db) as db:
+        estados = [r[0] for r in await (await db.execute("SELECT status FROM job_status ORDER BY id")).fetchall()]
+    assert estados == ["failed", "failed", "done"]

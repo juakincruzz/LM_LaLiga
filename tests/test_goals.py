@@ -39,25 +39,26 @@ def test_la_diferencia_de_goles_ya_no_es_siempre_uno():
     assert len(diferencias) > 1
 
 
-def test_expected_goals_neutro_sin_historial():
-    """Un equipo sin partidos aún (ascendido, inicio de temporada) usa el
-    valor neutro, no 0 ni una media basada en un puñado de partidos ruidosos."""
-    from core.state import GOLES_LIGA_NEUTRO
+def test_expected_goals_sin_historial_parte_de_la_forma_inicial():
+    """Un equipo sin partidos (ascendido) arranca algo peor que la media de la
+    liga, y el local sigue teniendo su ventaja de campo."""
+    from core.state import EW_INICIAL, FACTOR_GOLES_LOCAL
 
     state = LeagueState()
     lh, la = state.expected_goals("Nuevo A", "Nuevo B")
-    assert lh == pytest.approx(GOLES_LIGA_NEUTRO)
-    assert la == pytest.approx(GOLES_LIGA_NEUTRO)
+    media = (EW_INICIAL["goles_favor"] + EW_INICIAL["goles_contra"]) / 2
+    assert lh == pytest.approx(media * FACTOR_GOLES_LOCAL)
+    assert lh > la
 
 
-def test_expected_goals_usa_el_historial_propio_tras_suficientes_partidos():
+def test_expected_goals_sigue_la_forma_y_no_se_reinicia_en_verano():
     state = LeagueState()
-    fecha = np.datetime64("2025-08-01")
-    # Un equipo goleador de local, tres partidos (el mínimo)
+    sin_historial, _ = state.expected_goals("Goleador", "Cualquiera")
     for _ in range(3):
-        state.apply_match("Goleador", "Rival", 4, 0, "H", fecha)
+        state.apply_match("Goleador", "Rival", 4, 0, "H")
 
-    lh, _ = state.expected_goals("Goleador", "Cualquiera")
-    from core.state import GOLES_LIGA_NEUTRO
+    goleador, _ = state.expected_goals("Goleador", "Cualquiera")
+    assert goleador > sin_historial
 
-    assert lh > GOLES_LIGA_NEUTRO
+    state.start_new_season()
+    assert state.expected_goals("Goleador", "Cualquiera")[0] == pytest.approx(goleador)

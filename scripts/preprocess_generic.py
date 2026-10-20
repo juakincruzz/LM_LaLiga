@@ -11,10 +11,10 @@ from core.features import build_training_matrix
 def preprocess_league(league_code: str, seasons: list[str] | None = None):
     """Carga y preprocesa una liga sobre varias temporadas. Devuelve (X, y, df_jugados).
 
-    Por defecto entrena con `app.config.get_training_seasons` (la profundidad
-    histórica configurada). `core.features.build_training_matrix` resetea los
-    acumuladores en cada cambio de temporada mientras conserva el histórico de
-    enfrentamientos directos (`reset_per_season=True`, su valor por defecto).
+    Por defecto entrena con `app.config.get_training_seasons` (desde
+    `first_season`). `core.features.build_training_matrix` resetea la tabla en
+    cada cambio de temporada y regresa el Elo hacia la media, mientras la forma
+    continua sigue (`reset_per_season=True`, su valor por defecto).
     """
     if seasons is None:
         seasons = get_training_seasons(league_code)

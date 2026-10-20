@@ -7,32 +7,60 @@ from core.evaluation import (
     baseline_always_home,
     baseline_majority_class,
     bookmaker_baseline,
+    Fold,
+    evaluate_walk_forward,
     multiclass_brier_score,
-    season_train_test_split,
+    walk_forward_splits,
 )
 
 
-def test_split_usa_la_ultima_temporada_como_test():
-    df = pd.DataFrame({
-        "Season": ["2223"] * 3 + ["2324"] * 3 + ["2425"] * 3,
-        "Date": pd.to_datetime(["2022-09-01"] * 3 + ["2023-09-01"] * 3 + ["2024-09-01"] * 3),
-    })
-    X = pd.DataFrame({"f": range(9)})
-    y = pd.Series(range(9))
-
-    X_train, X_test, y_train, y_test, df_train, df_test = season_train_test_split(
-        df, X, y, ["2223", "2324", "2425"]
-    )
-
-    assert len(X_train) == 6 and len(X_test) == 3
-    assert set(df_train["Season"]) == {"2223", "2324"}
-    assert set(df_test["Season"]) == {"2425"}
+def _temporadas(*codigos, por_temporada=3):
+    return pd.DataFrame({"Season": [c for c in codigos for _ in range(por_temporada)]})
 
 
-def test_split_exige_al_menos_dos_temporadas():
-    df = pd.DataFrame({"Season": ["2526"]})
+def test_walk_forward_cada_test_entrena_solo_con_las_anteriores():
+    df = _temporadas("2122", "2223", "2324", "2425")
+    cortes = walk_forward_splits(df, ["2122", "2223", "2324", "2425"], n_test=2)
+
+    assert [t for t, _, _ in cortes] == ["2324", "2425"]
+    for test, train, prueba in cortes:
+        assert set(df.loc[prueba, "Season"]) == {test}
+        assert set(df.loc[train, "Season"]) == {s for s in ["2122", "2223", "2324"] if s < test}
+
+
+def test_walk_forward_salta_las_excluidas_y_las_vacias():
+    df = _temporadas("1920", "2021", "2122")
+    cortes = walk_forward_splits(df, ["1920", "2021", "2122", "2223"], excluded={"2021"})
+
+    assert [t for t, _, _ in cortes] == ["2122"]  # 2223 no tiene partidos
+    _, train, _ = cortes[0]
+    assert set(df.loc[train, "Season"]) == {"1920"}
+
+
+def test_walk_forward_exige_al_menos_dos_temporadas():
     with pytest.raises(ValueError, match="al menos 2"):
-        season_train_test_split(df, df, df["Season"], ["2526"])
+        walk_forward_splits(_temporadas("2526"), ["2526"])
+
+
+def test_informe_walk_forward_con_referencias():
+    """Probabilidades perfectas: acierto 1 y log-loss casi 0; el mercado y las
+    frecuencias se calculan aparte, con lo que se sabía en cada corte."""
+    y_test = pd.Series([1, -1, 0, 1])
+    df_test = pd.DataFrame({
+        "Date": pd.to_datetime(["2025-09-01"] * 4),
+        "Result": ["H", "A", "D", "H"],
+        "Odds_Home": [1.5, 4.0, 3.0, 2.0], "Odds_Draw": [4.0, 3.5, 2.8, 3.3], "Odds_Away": [6.0, 1.8, 3.0, 3.5],
+    })
+    perfecta = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float) * 0.98 + 0.02 / 3
+    fold = Fold("2526", pd.Series([1, 1, 0, -1]), y_test, perfecta, df_test)
+
+    r = evaluate_walk_forward([fold], n_train=4, label=lambda s: s)
+
+    assert r.accuracy == pytest.approx(1.0)
+    assert r.logloss < r.logloss_bookmaker < r.logloss_frequencies + 1
+    assert r.baseline_home == pytest.approx(0.5)
+    assert r.baseline_majority == pytest.approx(0.5)  # la mayoría del train es «local»
+    assert (r.n_train, r.n_test, r.test_period) == (4, 4, "2526")
 
 
 def test_baseline_majority_usa_el_train_no_el_test():

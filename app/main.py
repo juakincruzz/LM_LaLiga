@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
-from app.database import init_db
+from app.database import init_db, mark_interrupted_jobs
 from app.routers import equipo, jobs, liga, prediccion
 from app.templating import templates
 from core.errors import UnknownLeagueError
@@ -12,6 +12,7 @@ from core.errors import UnknownLeagueError
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await mark_interrupted_jobs()
     yield
 
 

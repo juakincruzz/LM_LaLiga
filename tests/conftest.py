@@ -21,7 +21,8 @@ JUGADOS = 190  # partidos jugados en `media_temporada`
 
 @pytest.fixture(autouse=True)
 def temporada_de_fixtures(monkeypatch):
-    """Congela la temporada actual en 25/26, la de los CSV de tests/fixtures.
+    """Congela la temporada actual en 25/26, la de los CSV de tests/fixtures,
+    y la primera de entrenamiento en 21/22, la más antigua que hay.
 
     config/leagues.yaml sigue a la temporada real; sin esto, cambiarla rompería
     todos los tests que cuentan con la 25/26 completa de la fixture. Debe ir
@@ -30,6 +31,8 @@ def temporada_de_fixtures(monkeypatch):
     import app.config as config
 
     monkeypatch.setitem(config.DEFAULTS, "current_season", "2526")
+    # La fixture más antigua: la configuración real entrena desde la 14/15
+    monkeypatch.setitem(config.DEFAULTS, "first_season", "2122")
 
 
 @pytest.fixture(autouse=True)

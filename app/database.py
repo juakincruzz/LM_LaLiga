@@ -90,6 +90,10 @@ CREATE TABLE IF NOT EXISTS job_status (
 # la columna ya existe. Es la estrategia adecuada para una BD local desechable;
 # añadir aquí toda columna nueva, además de al SCHEMA de arriba.
 MIGRATIONS = [
+    # Log-loss de referencia de la evaluación walk-forward: el mercado y las
+    # frecuencias de resultados (no saber nada). Ver core/evaluation.py.
+    "ALTER TABLE model_runs ADD COLUMN logloss_bookmaker REAL",
+    "ALTER TABLE model_runs ADD COLUMN logloss_frequencies REAL",
     "ALTER TABLE simulations ADD COLUMN label TEXT DEFAULT 'Temporada actual'",
     # Sin league_code, la consulta de la página de liga tenía que adivinar a qué
     # liga pertenecía cada simulación, y mezclaba unas con otras.
@@ -162,6 +166,26 @@ async def init_db():
             """
         )
         await db.commit()
+
+
+async def mark_interrupted_jobs() -> int:
+    """Marca como fallidos los trabajos que quedaron 'queued' o 'running'.
+
+    Se llama al arrancar el servidor: las BackgroundTasks viven en el proceso,
+    así que tras un reinicio nadie va a terminar esos trabajos, y la tarjeta
+    se quedaría «en marcha» para siempre.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """
+            UPDATE job_status
+               SET status = 'failed', progress = 0, updated_at = datetime('now'),
+                   log = 'Interrumpido: el servidor se reinició mientras se ejecutaba.'
+             WHERE status IN ('queued', 'running')
+            """
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 async def get_db():

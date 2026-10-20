@@ -8,6 +8,7 @@ import pickle
 import os
 
 from core.errors import ModelNotTrainedError
+from core.features import FEATURE_COLS
 
 # Directorio de los .pkl. Constante de módulo para que los tests puedan
 # redirigirla y no escribir modelos reales al ejecutar la suite.
@@ -27,6 +28,9 @@ class LeaguePredictor:
     def __init__(self, league_code: str = "SP1"):
         self.league_code = league_code
         self.model_path = MODELS_DIR / f"{league_code}_predictor.pkl"
+        # Modelo entrenado SOLO con temporadas anteriores a la actual: el del
+        # historial de aciertos, que tiene que ser fuera de muestra.
+        self.history_model_path = MODELS_DIR / f"{league_code}_predictor_historial.pkl"
         self.model = None
         self.feature_names = None
         self.accuracy = None
@@ -80,11 +84,18 @@ class LeaguePredictor:
         return self._train(model, 'Gradient Boosting', X_train, y_train, X_test, y_test)
 
     def train_xgboost(self, X_train, y_train, X_test=None, y_test=None):
-        """Entrena modelo XGBoost."""
+        """Entrena modelo XGBoost, regularizado.
+
+        Árboles de profundidad 2, más árboles con menos aprendizaje,
+        submuestreo y L2. Con los parámetros anteriores (profundidad 4, 150
+        árboles a 0,05) el modelo sobreajustaba: solo este cambio bajó la
+        log-loss walk-forward de 1,034 a 1,000 (docs/ROADMAP.md, §2).
+        """
         print("\n⚡ Entrenando XGBoost...")
         model = XGBClassifier(
-            n_estimators=150, max_depth=4, learning_rate=0.05, random_state=42,
-            n_jobs=-1, eval_metric='mlogloss', num_class=3,
+            n_estimators=400, max_depth=2, learning_rate=0.02, subsample=0.8,
+            colsample_bytree=0.8, min_child_weight=10, reg_lambda=5.0,
+            random_state=42, n_jobs=-1, eval_metric='mlogloss', num_class=3,
         )
         return self._train(model, 'XGBoost', X_train, y_train, X_test, y_test)
 
@@ -211,6 +222,16 @@ class LeaguePredictor:
             for clase, valor in zip(self.model.classes_, proba_row)
         }
 
+    def proba_ordenada(self, X) -> np.ndarray:
+        """Probabilidades de varias filas en el orden (visitante, empate,
+        local), indexando por model.classes_ y renormalizadas en float64
+        (XGBoost devuelve float32 y no suman exactamente 1)."""
+        crudas = self.model.predict_proba(self._as_matrix(X))
+        salida = np.zeros((len(crudas), 3))
+        for j, clase in enumerate(self.model.classes_):
+            salida[:, self._inverse_target_map[int(clase)] + 1] = crudas[:, j]
+        return salida / salida.sum(axis=1, keepdims=True)
+
     def predict_match(self, features):
         """Predice un partido. Devuelve la predicción y las tres probabilidades."""
         if self.model is None:
@@ -270,6 +291,7 @@ class LeaguePredictor:
                 'accuracy': self.accuracy,
                 'model_name': self.model_name,
                 'league_code': self.league_code,
+                'feature_names': list(FEATURE_COLS),
             }, f)
 
         print(f"✓ Modelo guardado en {path}")
@@ -294,6 +316,13 @@ class LeaguePredictor:
                 f"Pulsa 'Entrenar modelo' primero."
             ) from exc
 
+        # Un .pkl entrenado con otras features revienta más tarde con un error
+        # de forma de XGBoost en mitad de una predicción; mejor decirlo aquí.
+        if data.get('feature_names') != list(FEATURE_COLS):
+            raise ModelNotTrainedError(
+                f"El modelo guardado de {self.league_code} usa otras variables que las actuales. "
+                f"Pulsa 'Entrenar modelo' para reentrenarlo."
+            )
         self.model = data['model']
         # Un modelo cargado se usa para predecir fila a fila (simulación,
         # próxima jornada). Con n_jobs=-1, XGBoost reparte cada predicción de

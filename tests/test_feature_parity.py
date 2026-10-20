@@ -25,8 +25,8 @@ def partidos():
 
 
 def test_matriz_identica_al_snapshot_congelado(partidos):
-    """Cualquier cambio no intencionado en las 35 fórmulas o en el orden de
-    los partidos rompe este test."""
+    """Cualquier cambio no intencionado en las fórmulas (Elo, forma continua)
+    o en el orden de los partidos rompe este test."""
     esperado = pd.read_csv(FIXTURES / "SP1_2526_features.csv.gz")
     X, y, _ = build_training_matrix(partidos, reset_per_season=False)
 
@@ -56,6 +56,7 @@ def test_estado_incremental_coincide_con_el_de_lotes(partidos):
         state.apply_match(
             row.HomeTeam, row.AwayTeam,
             int(row.Home_Goals), int(row.Away_Goals), row.Result, row.Date,
+            row.Home_ShotsOnTarget, row.Away_ShotsOnTarget,
         )
 
 
@@ -79,22 +80,46 @@ def test_clasificacion_coincide_con_la_del_simulador(partidos):
     )
 
 
-def test_start_new_season_resetea_puntos_pero_conserva_h2h(partidos):
+def test_start_new_season_resetea_la_tabla_y_regresa_el_elo(partidos):
     state = LeagueState()
     for row in partidos.itertuples(index=False):
         state.apply_match(
             row.HomeTeam, row.AwayTeam,
             int(row.Home_Goals), int(row.Away_Goals), row.Result, row.Date,
+            row.Home_ShotsOnTarget, row.Away_ShotsOnTarget,
         )
 
     h2h_antes = {k: list(v) for k, v in state.h2h_records.items()}
+    elo_antes = {n: t.elo for n, t in state.teams.items()}
+    ew_antes = {n: dict(t.ew) for n, t in state.teams.items()}
+    media = sum(elo_antes.values()) / len(elo_antes)
     assert any(t.total.points > 0 for t in state.teams.values())
 
     state.start_new_season()
 
     assert all(t.total.matches == 0 and t.total.points == 0 for t in state.teams.values())
     assert state.h2h_records == h2h_antes
-    assert state.last_match_date == {}  # si no, el descanso sería de meses
+    # La forma continua sigue; el Elo se acerca un tercio a la media
+    assert {n: t.ew for n, t in state.teams.items()} == ew_antes
+    for nombre, antes in elo_antes.items():
+        assert state.team(nombre).elo == pytest.approx(antes + 0.33 * (media - antes))
+
+
+def test_ascendido_empieza_por_debajo(partidos):
+    """Quien aparece tras el primer cambio de temporada viene de Segunda."""
+    state = LeagueState()
+    state.team("Barcelona")
+    state.start_new_season()
+    assert state.team("Recien Ascendido").elo < state.team("Barcelona").elo
+
+
+def test_partido_simulado_sin_tiros_no_mueve_la_forma_de_tiros():
+    state = LeagueState()
+    antes = dict(state.team("Betis").ew)
+    state.apply_match("Betis", "Sevilla", 2, 0, "H")
+    despues = state.team("Betis").ew
+    assert despues["tiros_puerta_favor"] == antes["tiros_puerta_favor"]
+    assert despues["goles_favor"] > antes["goles_favor"]
 
 
 def test_snapshot_es_independiente(partidos):

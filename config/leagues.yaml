@@ -3,11 +3,11 @@
 # nombre del modelo; app/config.py::LEAGUE_CODE es la constante que la usa.
 #
 # current_season es la única fuente de verdad de "qué temporada es la actual".
-# history_depth: temporadas anteriores que se suman a la actual para entrenar
-# (ver app/config.py::get_training_seasons).
+# first_season: la más antigua con la que se entrena (ver
+# app/config.py::get_training_seasons). Más historia = mejor modelo.
 defaults:
   current_season: "2627"
-  history_depth: 5
+  first_season: "1415"
 
 SP1:
   name: "La Liga"
@@ -15,6 +15,7 @@ SP1:
   calendar_code: "es.1"     # calendario: github.com/openfootball/football.json/{2026-27}/es.1.json
   country: "España"
   teams: 20
+  relegated: 3              # descensos por temporada (simulación y tabla)
   next_season:
     code: "2728"
     label: "27/28"

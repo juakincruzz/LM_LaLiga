@@ -5,6 +5,7 @@ from datetime import datetime
 import aiosqlite
 
 from app.config import get_current_season
+from core.errors import ModelNotTrainedError
 from scripts.season_simulator import simulate_season
 
 
@@ -28,7 +29,7 @@ async def run_simulation(
     )
     row = await cursor.fetchone()
     if not row:
-        raise ValueError(
+        raise ModelNotTrainedError(
             "No hay modelo entrenado para esta liga. Pulsa 'Entrenar modelo' primero."
         )
 
